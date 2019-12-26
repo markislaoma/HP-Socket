@@ -38,6 +38,7 @@ template<class T, USHORT default_port> class CHttpServerT : public IComplexHttpR
 
 public:
 	using __super::Stop;
+	using __super::GetState;
 	using __super::SendPackets;
 	using __super::Disconnect;
 	using __super::HasStarted;
@@ -49,8 +50,11 @@ public:
 	using __super::IsSecure;
 	using __super::FireHandShake;
 	using __super::FindSocketObj;
+
+#ifdef _SSL_SUPPORT
 	using __super::StartSSLHandShake;
 	using __super::IsSSLAutoHandShake;
+#endif
 
 protected:
 	using CCleanThread	= CThread<CHttpServerT, VOID, UINT>;
@@ -66,10 +70,11 @@ public:
 
 	virtual BOOL SendResponse(CONNID dwConnID, USHORT usStatusCode, LPCSTR lpszDesc = nullptr, const THeader lpHeaders[] = nullptr, int iHeaderCount = 0, const BYTE* pData = nullptr, int iLength = 0);
 	virtual BOOL SendLocalFile(CONNID dwConnID, LPCSTR lpszFileName, USHORT usStatusCode = HSC_OK, LPCSTR lpszDesc = nullptr, const THeader lpHeaders[] = nullptr, int iHeaderCount = 0);
+	virtual BOOL SendChunkData(CONNID dwConnID, const BYTE* pData = nullptr, int iLength = 0, LPCSTR lpszExtensions = nullptr);
 
 	virtual BOOL Release(CONNID dwConnID);
 
-	virtual BOOL SendWSMessage(CONNID dwConnID, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4] = nullptr, BYTE* pData = nullptr, int iLength = 0, ULONGLONG ullBodyLen = 0);
+	virtual BOOL SendWSMessage(CONNID dwConnID, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE* pData = nullptr, int iLength = 0, ULONGLONG ullBodyLen = 0);
 
 	virtual BOOL StartHttp(CONNID dwConnID);
 
@@ -181,7 +186,7 @@ public:
 
 	virtual ~CHttpServerT()
 	{
-		Stop();
+		ENSURE_STOP();
 	}
 
 private:

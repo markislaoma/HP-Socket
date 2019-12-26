@@ -213,7 +213,7 @@ public:
 		{
 			if(m_bHeader)
 			{
-				iMin = min(m_iHeaderRemain, iRemain);
+				iMin = MIN(m_iHeaderRemain, iRemain);
 				memcpy(m_szHeader + m_iHeaderLen - m_iHeaderRemain, pTemp, iMin);
 
 				m_iHeaderRemain	-= iMin;
@@ -234,6 +234,14 @@ public:
 					}
 					else
 					{
+						if((m_pHttpObj->IsRequest() && iMaskLen == 0) || (!m_pHttpObj->IsRequest() && iMaskLen > 0))
+						{
+							::SetLastError(ERROR_INVALID_DATA);
+							hr = HR_ERROR;
+
+							break;
+						}
+
 						m_ullBodyLen	= iExtLen == 0 ? iLen : (iExtLen == 2 ? bh.extlen() : NToH64(*(ULONGLONG*)(m_szHeader + HTTP_MIN_WS_HEADER_LEN)));
 						m_ullBodyRemain	= m_ullBodyLen;
 						m_lpszMask		= iMaskLen > 0 ? m_szHeader + HTTP_MIN_WS_HEADER_LEN + iExtLen : nullptr;
@@ -257,7 +265,7 @@ public:
 			}
 			else
 			{
-				iMin = (int)min(m_ullBodyRemain, (ULONGLONG)iRemain);
+				iMin = (int)MIN(m_ullBodyRemain, (ULONGLONG)iRemain);
 
 				if(m_lpszMask)
 				{
@@ -287,7 +295,7 @@ public:
 			iRemain	-= iMin;
 		}
 
-		return HR_OK;
+		return hr;
 	}
 
 	BOOL GetMessageState(BOOL* lpbFinal, BYTE* lpiReserved, BYTE* lpiOperationCode, LPCBYTE* lpszMask, ULONGLONG* lpullBodyLen, ULONGLONG* lpullBodyRemain)
@@ -677,6 +685,7 @@ public:
 	DWORD GetFreeTime() const		{return m_dwFreeTime;}
 	void SetFree()					{m_dwFreeTime = ::TimeGetTime();}
 
+	BOOL IsRequest()				{return m_bRequest;}
 	BOOL IsUpgrade()				{return m_parser.upgrade;}
 	BOOL IsKeepAlive()				{return ::http_should_keep_alive(&m_parser);}
 	USHORT GetVersion()				{return MAKEWORD(m_parser.http_major, m_parser.http_minor);}
@@ -1266,13 +1275,7 @@ public:
 
 	void Clear()
 	{
-		THttpObj* pHttpObj = nullptr;
-
-		while(m_lsFreeHttpObj.TryGet(&pHttpObj))
-			THttpObj::Destruct(pHttpObj);
-
-		VERIFY(m_lsFreeHttpObj.IsEmpty());
-		m_lsFreeHttpObj.Reset();
+		m_lsFreeHttpObj.Clear();
 
 		ReleaseGCHttpObj(TRUE);
 		VERIFY(m_lsGCHttpObj.IsEmpty());
@@ -1322,9 +1325,9 @@ private:
 	TSSLHttpObjQueue	m_lsGCHttpObj;
 };
 
-template<BOOL is_request, class T, class S> const DWORD CHttpObjPoolT<is_request, T, S>::DEFAULT_HTTPOBJ_LOCK_TIME	= 15 * 1000;
-template<BOOL is_request, class T, class S> const DWORD CHttpObjPoolT<is_request, T, S>::DEFAULT_HTTPOBJ_POOL_SIZE	= 600;
-template<BOOL is_request, class T, class S> const DWORD CHttpObjPoolT<is_request, T, S>::DEFAULT_HTTPOBJ_POOL_HOLD	= 600;
+template<BOOL is_request, class T, class S> const DWORD CHttpObjPoolT<is_request, T, S>::DEFAULT_HTTPOBJ_LOCK_TIME	= DEFAULT_OBJECT_CACHE_LOCK_TIME;
+template<BOOL is_request, class T, class S> const DWORD CHttpObjPoolT<is_request, T, S>::DEFAULT_HTTPOBJ_POOL_SIZE	= DEFAULT_OBJECT_CACHE_POOL_SIZE;
+template<BOOL is_request, class T, class S> const DWORD CHttpObjPoolT<is_request, T, S>::DEFAULT_HTTPOBJ_POOL_HOLD	= DEFAULT_OBJECT_CACHE_POOL_HOLD;
 
 // ------------------------------------------------------------------------------------------------------------- //
 
@@ -1335,6 +1338,7 @@ extern void MakeRequestLine(LPCSTR lpszMethod, LPCSTR lpszPath, EnHttpVersion en
 extern void MakeStatusLine(EnHttpVersion enVersion, USHORT usStatusCode, LPCSTR lpszDesc, CStringA& strValue);
 extern void MakeHeaderLines(const THeader lpHeaders[], int iHeaderCount, const TCookieMap* pCookies, int iBodyLength, BOOL bRequest, int iConnFlag, LPCSTR lpszDefaultHost, USHORT usPort, CStringA& strValue);
 extern void MakeHttpPacket(const CStringA& strHeader, const BYTE* pBody, int iLength, WSABUF szBuffer[2]);
+extern int MakeChunkPackage(const BYTE* pData, int iLength, LPCSTR lpszExtensions, char szLen[12], WSABUF bufs[5]);
 extern BOOL MakeWSPacket(BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4], BYTE* pData, int iLength, ULONGLONG ullBodyLen, BYTE szHeader[HTTP_MAX_WS_HEADER_LEN], WSABUF szBuffer[2]);
 extern BOOL ParseUrl(const CStringA& strUrl, BOOL& bHttps, CStringA& strHost, USHORT& usPort, CStringA& strPath);
 

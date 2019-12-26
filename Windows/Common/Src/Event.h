@@ -2,11 +2,11 @@
  * Copyright: JessMA Open Source (ldcsaa@gmail.com)
  *
  * Author	: Bruce Liang
- * Website	: http://www.jessma.org
- * Project	: https://github.com/ldcsaa
+ * Website	: https://github.com/ldcsaa
+ * Project	: https://github.com/ldcsaa/HP-Socket/HP-Socket
  * Blog		: http://www.cnblogs.com/ldcsaa
  * Wiki		: http://www.oschina.net/p/hp-socket
- * QQ Group	: 75375912, 44636872
+ * QQ Group	: 44636872, 75375912
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,15 @@ public:
 		return(IsValid());
 	}
 
+	BOOL Wait(DWORD dwMilliseconds = INFINITE)
+	{
+		DWORD rs = ::WaitForSingleObject(m_hEvent, dwMilliseconds);
+
+		if(rs == WAIT_TIMEOUT) ::SetLastError(WAIT_TIMEOUT);
+
+		return (rs == WAIT_OBJECT_0);
+	}
+
 	BOOL Pulse()	{return(::PulseEvent(m_hEvent));}
 	BOOL Reset()	{return(::ResetEvent(m_hEvent));}
 	BOOL Set()		{return(::SetEvent(m_hEvent));}
@@ -69,16 +78,16 @@ private:
 	HANDLE m_hEvent;
 };
 
-class CTimmerEvt
+class CTimerEvt
 {
 public:
-	CTimmerEvt(BOOL bManualReset = FALSE, LPCTSTR lpszName = nullptr, LPSECURITY_ATTRIBUTES pSecurity = nullptr)
+	CTimerEvt(BOOL bManualReset = FALSE, LPCTSTR lpszName = nullptr, LPSECURITY_ATTRIBUTES pSecurity = nullptr)
 	{
 		m_hTimer = ::CreateWaitableTimer(pSecurity, bManualReset, lpszName);
 		ENSURE(IsValid());
 	}
 
-	~CTimmerEvt()
+	~CTimerEvt()
 	{
 		if(IsValid())
 			ENSURE(::CloseHandle(m_hTimer));
@@ -93,7 +102,7 @@ public:
 		return(IsValid());
 	}
 
-	BOOL Set(LONG lPeriod, LARGE_INTEGER* lpDueTime = nullptr)
+	BOOL Set(LONG lPeriod, LARGE_INTEGER* lpDueTime = nullptr, BOOL bResume = FALSE, PTIMERAPCROUTINE pfnAPC = nullptr, LPVOID lpArg = nullptr)
 	{
 		if(lpDueTime == nullptr)
 		{
@@ -101,7 +110,7 @@ public:
 			lpDueTime->QuadPart = -(lPeriod * 10000LL);
 		}
 
-		return ::SetWaitableTimer(m_hTimer, lpDueTime, lPeriod, nullptr, nullptr, FALSE);
+		return ::SetWaitableTimer(m_hTimer, lpDueTime, lPeriod, pfnAPC, lpArg, bResume);
 	}
 
 
@@ -115,8 +124,8 @@ public:
 	operator const HANDLE	()	const	{return m_hTimer;}
 
 private:
-	CTimmerEvt(const CTimmerEvt&);
-	CTimmerEvt operator = (const CTimmerEvt&);
+	CTimerEvt(const CTimerEvt&);
+	CTimerEvt operator = (const CTimerEvt&);
 
 private:
 	HANDLE m_hTimer;

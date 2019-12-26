@@ -34,6 +34,7 @@ template<class R, class T, USHORT default_port> class CHttpClientT : public R, p
 
 public:
 	using __super::Stop;
+	using __super::GetState;
 	using __super::SendPackets;
 	using __super::HasStarted;
 	using __super::GetRemoteHost;
@@ -41,8 +42,11 @@ public:
 	using __super::IsSecure;
 	using __super::IsConnected;
 	using __super::FireHandShake;
+
+#ifdef _SSL_SUPPORT
 	using __super::IsSSLAutoHandShake;
 	using __super::StartSSLHandShakeNoCheck;
+#endif
 
 protected:
 	using __super::SetLastError;
@@ -53,6 +57,7 @@ protected:
 public:
 	virtual BOOL SendRequest(LPCSTR lpszMethod, LPCSTR lpszPath, const THeader lpHeaders[] = nullptr, int iHeaderCount = 0, const BYTE* pBody = nullptr, int iLength = 0);
 	virtual BOOL SendLocalFile(LPCSTR lpszFileName, LPCSTR lpszMethod, LPCSTR lpszPath, const THeader lpHeaders[] = nullptr, int iHeaderCount = 0);
+	virtual BOOL SendChunkData(const BYTE* pData = nullptr, int iLength = 0, LPCSTR lpszExtensions = nullptr);
 
 	virtual BOOL SendPost(LPCSTR lpszPath, const THeader lpHeaders[], int iHeaderCount, const BYTE* pBody, int iLength)
 		{return SendRequest(HTTP_METHOD_POST, lpszPath, lpHeaders, iHeaderCount, pBody, iLength);}
@@ -73,7 +78,7 @@ public:
 	virtual BOOL SendConnect(LPCSTR lpszHost, const THeader lpHeaders[] = nullptr, int iHeaderCount = 0)
 		{return SendRequest(HTTP_METHOD_CONNECT, lpszHost, lpHeaders, iHeaderCount);}
 
-	virtual BOOL SendWSMessage(BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4] = nullptr, BYTE* pData = nullptr, int iLength = 0, ULONGLONG ullBodyLen = 0);
+	virtual BOOL SendWSMessage(BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4], const BYTE* pData = nullptr, int iLength = 0, ULONGLONG ullBodyLen = 0);
 
 	virtual BOOL StartHttp();
 
@@ -216,7 +221,7 @@ public:
 
 	virtual ~CHttpClientT()
 	{
-		Stop();
+		ENSURE_STOP();
 	}
 
 private:
@@ -254,7 +259,7 @@ public:
 	virtual BOOL Start(LPCTSTR lpszRemoteAddress, USHORT usPort, BOOL bAsyncConnect = TRUE, LPCTSTR lpszBindAddress = nullptr, USHORT usLocalPort = 0);
 public:
 	virtual BOOL SendRequest(LPCSTR lpszMethod, LPCSTR lpszPath, const THeader lpHeaders[] = nullptr, int iHeaderCount = 0, const BYTE* pBody = nullptr, int iLength = 0);
-	virtual BOOL SendWSMessage(BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4] = nullptr, BYTE* pData = nullptr, int iLength = 0, ULONGLONG ullBodyLen = 0);
+	virtual BOOL SendWSMessage(BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4] = nullptr, const BYTE* pData = nullptr, int iLength = 0, ULONGLONG ullBodyLen = 0);
 
 public:
 	virtual BOOL IsUpgrade()

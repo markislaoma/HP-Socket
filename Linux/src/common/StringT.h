@@ -2,11 +2,11 @@
 * Copyright: JessMA Open Source (ldcsaa@gmail.com)
 *
 * Author	: Bruce Liang
-* Website	: http://www.jessma.org
-* Project	: https://github.com/ldcsaa
+* Website	: https://github.com/ldcsaa
+* Project	: https://github.com/ldcsaa/HP-Socket
 * Blog		: http://www.cnblogs.com/ldcsaa
 * Wiki		: http://www.oschina.net/p/hp-socket
-* QQ Group	: 75375912, 44636872
+* QQ Group	: 44636872, 75375912
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,36 +106,42 @@ public:
 
 	int Format(const _CharT* format, ...)
 	{
-		_CharT* p = nullptr;
+		int rs;
+		va_list ap;
 
-		va_list arg_ptr;
-		va_start(arg_ptr, format);
-		int count = vasprintf(&p, format, arg_ptr);
-		va_end(arg_ptr);
+		va_start(ap, format);
+ 		rs = VASprintf(0, format, ap);
+		va_end(ap);
 
-		if(count >= 0)
-		{
-			this->assign(p, count);
-			free(p);
-		}
-
-		return count;
+		return rs;
 	}
 
 	int AppendFormat(const _CharT* format, ...)
 	{
-		_CharT* p = nullptr;
+		int rs;
+		va_list ap;
 
-		va_list arg_ptr;
-		va_start(arg_ptr, format);
-		int count = vasprintf(&p, format, arg_ptr);
-		va_end(arg_ptr);
+		va_start(ap, format);
+		rs = VASprintf(GetLength(), format, ap);
+		va_end(ap);
+
+		return rs;
+	}
+
+	int VASprintf(int offset, const _CharT* format, va_list ap)
+	{
+		va_list ap_cpy;
+		va_copy(ap_cpy, ap);
+
+		int count = vsnprintf(nullptr, 0, format, ap);
 
 		if(count >= 0)
 		{
-			this->append(p, count);
-			free(p);
+			_CharT* p = GetBuffer(count + offset);
+			vsnprintf(p + offset, count + 1, format, ap_cpy);
 		}
+
+		va_end(ap_cpy);
 
 		return count;
 	}
@@ -617,7 +623,7 @@ public:
 	CStringT(_InputIterator __beg, _InputIterator __end, const _Alloc& __a = _Alloc())
 	: __super(__beg, __end, __a) {}
 
-	~CStringT() _GLIBCXX_NOEXCEPT = default;
+	~CStringT() = default;
 
 	CStringT& operator=(const __super& __str)
 	{__super::operator=(__str); return *this;}

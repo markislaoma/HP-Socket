@@ -2,11 +2,11 @@
  * Copyright: JessMA Open Source (ldcsaa@gmail.com)
  *
  * Author	: Bruce Liang
- * Website	: http://www.jessma.org
- * Project	: https://github.com/ldcsaa
+ * Website	: https://github.com/ldcsaa
+ * Project	: https://github.com/ldcsaa/HP-Socket/HP-Socket
  * Blog		: http://www.cnblogs.com/ldcsaa
  * Wiki		: http://www.oschina.net/p/hp-socket
- * QQ Group	: 75375912, 44636872
+ * QQ Group	: 44636872, 75375912
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -113,6 +113,14 @@ inline LPCWSTR SafeStrW(LPCWSTR lpsz)	{return (lpsz != nullptr) ? lpsz : L"";}
 
 #ifndef __countof
 	#define __countof(arr)				ARRAY_SIZE(arr)
+#endif
+
+#ifndef MAX
+	#define MAX(a,b)					max(a,b)
+#endif
+
+#ifndef MIN
+	#define MIN(a,b)					min(a,b)
 #endif
 
 template<typename T> inline bool IS_HAS_ERROR(T v)

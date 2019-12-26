@@ -83,7 +83,7 @@ BOOL CUdpClient::CheckParams()
 		((int)m_dwFreeBufferPoolSize >= 0)														&&
 		((int)m_dwFreeBufferPoolHold >= 0)														&&
 		((int)m_dwDetectAttempts >= 0)															&&
-		((int)m_dwDetectInterval >= 0)															)
+		((int)m_dwDetectInterval >= 1000 || m_dwDetectInterval == 0)							)
 		return TRUE;
 
 	SetLastError(SE_INVALID_PARAM, __FUNCTION__, ERROR_INVALID_PARAMETER);
@@ -107,7 +107,7 @@ BOOL CUdpClient::CheckStarting()
 		m_enState = SS_STARTING;
 	else
 	{
-		SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_OPERATION);
+		SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_STATE);
 		return FALSE;
 	}
 
@@ -129,11 +129,11 @@ BOOL CUdpClient::CheckStoping(DWORD dwCurrentThreadID)
 		if(dwCurrentThreadID != m_dwWorkerID)
 		{
 			while(m_enState != SS_STOPPED)
-				::WaitFor(10);
+				::WaitWithMessageLoop(10);
 		}
 	}
 
-	SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_OPERATION);
+	SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_STATE);
 
 	return FALSE;
 }
@@ -236,28 +236,38 @@ BOOL CUdpClient::CreateWorkerThread()
 
 UINT WINAPI CUdpClient::WorkerThreadProc(LPVOID pv)
 {
-	TRACE("---------------> Client Worker Thread 0x%08X started <---------------\n", ::GetCurrentThreadId());
+	TRACE("---------------> Client Worker Thread 0x%08X started <---------------\n", SELF_THREAD_ID);
 
-	BOOL bCallStop		= TRUE;
 	CUdpClient* pClient	= (CUdpClient*)pv;
-	BOOL bDetect		= pClient->IsNeedDetect();
-	DWORD dwSize		= bDetect ? 5 : 4;
+	pClient->OnWorkerThreadStart(SELF_THREAD_ID);
+
+	BOOL bCallStop	= TRUE;
+	DWORD dwSize	= 4;
+	DWORD dwIndex	= 0;
+	BOOL bDetect	= pClient->IsNeedDetect();
+	HANDLE hUserEvt	= pClient->GetUserEvent();
+
+	if(bDetect) ++dwSize;
+	if(hUserEvt != nullptr) ++dwSize;
 
 	HANDLE* hEvents	= CreateLocalObjects(HANDLE, dwSize);
 
-	hEvents[0] = pClient->m_evSocket;
-	hEvents[1] = pClient->m_evBuffer;
-	hEvents[2] = pClient->m_evWorker;
-	hEvents[3] = pClient->m_evUnpause;
+	hEvents[dwIndex++] = pClient->m_evSocket;
+	hEvents[dwIndex++] = pClient->m_evBuffer;
+	hEvents[dwIndex++] = pClient->m_evWorker;
+	hEvents[dwIndex++] = pClient->m_evUnpause;
 
-	unique_ptr<CTimmerEvt> evDetectPtr;
+	unique_ptr<CTimerEvt> evDetectPtr;
 
 	if(bDetect)
 	{
-		evDetectPtr.reset(new CTimmerEvt());
-		evDetectPtr->Set(pClient->m_dwDetectInterval * 1000);
-		hEvents[4] = evDetectPtr->GetHandle();
+		evDetectPtr.reset(new CTimerEvt());
+		evDetectPtr->Set(pClient->m_dwDetectInterval);
+		hEvents[dwIndex++] = evDetectPtr->GetHandle();
 	}
+
+	if(hUserEvt != nullptr)
+		hEvents[dwIndex++] = hUserEvt;
 
 	pClient->m_rcBuffer.Malloc(pClient->m_dwMaxDatagramSize);
 
@@ -287,8 +297,27 @@ UINT WINAPI CUdpClient::WorkerThreadProc(LPVOID pv)
 		}
 		else if(retval == WSA_WAIT_EVENT_0 + 4)
 		{
-			if(!pClient->CheckConnection())
+			if(bDetect)
+			{
+				if(!pClient->CheckConnection())
+					break;
+			}
+			else
+			{
+				if(!pClient->OnUserEvent())
+				{
+					pClient->m_ccContext.Reset(TRUE, SO_CLOSE, ENSURE_ERROR_CANCELLED);
+					break;
+				}
+			}
+		}
+		else if(retval == WSA_WAIT_EVENT_0 + 5)
+		{
+			if(!pClient->OnUserEvent())
+			{
+				pClient->m_ccContext.Reset(TRUE, SO_CLOSE, ENSURE_ERROR_CANCELLED);
 				break;
+			}
 		}
 		else if(retval == WSA_WAIT_FAILED)
 		{
@@ -299,12 +328,12 @@ UINT WINAPI CUdpClient::WorkerThreadProc(LPVOID pv)
 			ENSURE(FALSE);
 	}
 
-	pClient->OnWorkerThreadEnd(::GetCurrentThreadId());
+	pClient->OnWorkerThreadEnd(SELF_THREAD_ID);
 
 	if(bCallStop && pClient->HasStarted())
 		pClient->Stop();
 
-	TRACE("---------------> Client Worker Thread 0x%08X stoped <---------------\n", ::GetCurrentThreadId());
+	TRACE("---------------> Client Worker Thread 0x%08X stoped <---------------\n", SELF_THREAD_ID);
 
 	return 0;
 }
@@ -313,7 +342,7 @@ BOOL CUdpClient::CheckConnection()
 {
 	if(m_dwDetectFails++ >= m_dwDetectAttempts)
 	{
-		m_ccContext.Reset(TRUE, SO_CLOSE, WSAECONNRESET);
+		m_ccContext.Reset(TRUE, SO_CLOSE, NO_ERROR, FALSE);
 		return FALSE;
 	}
 
@@ -443,7 +472,7 @@ BOOL CUdpClient::HandleConnect(WSANETWORKEVENTS& events)
 		ENSURE(DetectConnection() == NO_ERROR);
 	else
 	{
-		m_ccContext.Reset(FALSE);
+		m_ccContext.Reset(FALSE, SO_CLOSE, ENSURE_ERROR_CANCELLED, FALSE);
 		return FALSE;
 	}
 
@@ -473,6 +502,14 @@ BOOL CUdpClient::ReadData()
 
 		if(rc > 0)
 		{
+			m_dwDetectFails = 0;
+
+			if(::IsUdpCloseNotify(m_rcBuffer, rc))
+			{
+				m_ccContext.Reset(TRUE, SO_CLOSE, NO_ERROR, FALSE);
+				return FALSE;
+			}
+
 			if(TRIGGER(FireReceive(m_rcBuffer, rc)) == HR_ERROR)
 			{
 				TRACE("<C-CNNID: %Iu> OnReceive() event return 'HR_ERROR', connection will be closed !\n", m_dwConnID);
@@ -601,14 +638,14 @@ TItem* CUdpClient::GetSendBuffer()
 
 BOOL CUdpClient::Stop()
 {
-	DWORD dwCurrentThreadID = ::GetCurrentThreadId();
+	DWORD dwCurrentThreadID = SELF_THREAD_ID;
 
 	if(!CheckStoping(dwCurrentThreadID))
 		return FALSE;
 
-	SetConnected(FALSE);
-
 	WaitForWorkerThreadEnd(dwCurrentThreadID);
+
+	CheckConnected();
 
 	if(m_ccContext.bFireOnClose)
 		FireClose(m_ccContext.enOperation, m_ccContext.iErrorCode);
@@ -658,7 +695,7 @@ void CUdpClient::WaitForWorkerThreadEnd(DWORD dwCurrentThreadID)
 		if(dwCurrentThreadID != m_dwWorkerID)
 		{
 			m_evWorker.Set();
-			ENSURE(::WaitForSingleObject(m_hWorker, INFINITE) == WAIT_OBJECT_0);
+			ENSURE(::MsgWaitForSingleObject(m_hWorker));
 		}
 
 		::CloseHandle(m_hWorker);
@@ -668,7 +705,18 @@ void CUdpClient::WaitForWorkerThreadEnd(DWORD dwCurrentThreadID)
 	}
 }
 
-BOOL CUdpClient::Send(const BYTE* pBuffer, int iLength, int iOffset)
+void CUdpClient::CheckConnected()
+{
+	if(!IsConnected())
+		return;
+
+	if(m_ccContext.bNotify)
+		::SendUdpCloseNotify(m_soClient);
+
+	SetConnected(FALSE);
+}
+
+BOOL CUdpClient::DoSend(const BYTE* pBuffer, int iLength, int iOffset)
 {
 	ASSERT(pBuffer && iLength > 0 && iLength <= (int)m_dwMaxDatagramSize);
 
@@ -749,6 +797,7 @@ int CUdpClient::SendInternal(TItemPtr& itPtr)
 		return ERROR_INVALID_STATE;
 
 	BOOL isPending = !m_lsSend.IsEmpty();
+	m_iPending	  += itPtr->Size();
 
 	m_lsSend.PushBack(itPtr.Detach());
 
@@ -799,7 +848,6 @@ BOOL CUdpClient::GetRemoteHost(TCHAR lpszHost[], int& iHostLen, USHORT& usPort)
 
 	return isOK;
 }
-
 
 BOOL CUdpClient::GetRemoteHost(LPCSTR* lpszHost, USHORT* pusPort)
 {

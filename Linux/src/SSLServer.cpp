@@ -53,12 +53,13 @@ void CSSLServer::PrepareStart()
 
 void CSSLServer::Reset()
 {
+	m_sslPool.Clear();
 	m_sslCtx.RemoveThreadLocalState();
 
 	__super::Reset();
 }
 
-void CSSLServer::OnWorkerThreadEnd(DWORD dwThreadID)
+void CSSLServer::OnWorkerThreadEnd(THR_ID dwThreadID)
 {
 	m_sslCtx.RemoveThreadLocalState();
 
@@ -116,15 +117,6 @@ EnHandleResult CSSLServer::FireClose(TSocketObj* pSocketObj, EnSocketOperation e
 
 	if(pSession != nullptr)
 		m_sslPool.PutFreeSession(pSession);
-
-	return result;
-}
-
-EnHandleResult CSSLServer::FireShutdown()
-{
-	EnHandleResult result = DoFireShutdown();
-
-	m_sslPool.Clear();
 
 	return result;
 }
@@ -190,6 +182,31 @@ void CSSLServer::DoSSLHandShake(TSocketObj* pSocketObj)
 
 	ENSURE(SetConnectionReserved2(pSocketObj, pSession));
 	ENSURE(::ProcessHandShake(this, pSocketObj, pSession) == HR_OK);
+}
+
+BOOL CSSLServer::GetSSLSessionInfo(CONNID dwConnID, EnSSLSessionInfo enInfo, LPVOID* lppInfo)
+{
+	ASSERT(lppInfo != nullptr);
+
+	*lppInfo				= nullptr;
+	TSocketObj* pSocketObj	= FindSocketObj(dwConnID);
+
+	if(!TSocketObj::IsValid(pSocketObj))
+	{
+		::SetLastError(ERROR_OBJECT_NOT_FOUND);
+		return FALSE;
+	}
+
+	CSSLSession* pSession = nullptr;
+	GetConnectionReserved2(pSocketObj, (PVOID*)&pSession);
+
+	if(pSession == nullptr || !pSession->IsValid())
+	{
+		::SetLastError(ERROR_INVALID_STATE);
+		return FALSE;
+	}
+
+	return pSession->GetSessionInfo(enInfo, lppInfo);
 }
 
 #endif

@@ -127,12 +127,12 @@ BOOL CTcpServer::CheckParams()
 {
 	if	((m_enSendPolicy >= SP_PACK && m_enSendPolicy <= SP_DIRECT)								&&
 		(m_enOnSendSyncPolicy >= OSSP_NONE && m_enOnSendSyncPolicy <= OSSP_RECEIVE)				&&
-		((int)m_dwMaxConnectionCount > 0)														&&
+		((int)m_dwMaxConnectionCount > 0 && m_dwMaxConnectionCount <= MAX_CONNECTION_COUNT)		&&
 		((int)m_dwWorkerThreadCount > 0 && m_dwWorkerThreadCount <= MAX_WORKER_THREAD_COUNT)	&&
 		((int)m_dwAcceptSocketCount > 0)														&&
 		((int)m_dwSocketBufferSize >= MIN_SOCKET_BUFFER_SIZE)									&&
 		((int)m_dwSocketListenQueue > 0)														&&
-		((int)m_dwFreeSocketObjLockTime >= 0)													&&
+		((int)m_dwFreeSocketObjLockTime >= 1000)												&&
 		((int)m_dwFreeSocketObjPool >= 0)														&&
 		((int)m_dwFreeBufferObjPool >= 0)														&&
 		((int)m_dwFreeSocketObjHold >= 0)														&&
@@ -165,7 +165,7 @@ BOOL CTcpServer::CheckStarting()
 		m_enState = SS_STARTING;
 	else
 	{
-		SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_OPERATION);
+		SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_STATE);
 		return FALSE;
 	}
 
@@ -185,10 +185,10 @@ BOOL CTcpServer::CheckStoping()
 		}
 
 		while(m_enState != SS_STOPPED)
-			::WaitFor(10);
+			::WaitWithMessageLoop(10);
 	}
 
-	SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_OPERATION);
+	SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_STATE);
 
 	return FALSE;
 }
@@ -425,13 +425,7 @@ void CTcpServer::AddClientSocketObj(CONNID dwConnID, TSocketObj* pSocketObj, con
 
 void CTcpServer::ReleaseFreeSocket()
 {
-	TSocketObj* pSocketObj = nullptr;
-
-	while(m_lsFreeSocket.TryGet(&pSocketObj))
-		DeleteSocketObj(pSocketObj);
-
-	ENSURE(m_lsFreeSocket.IsEmpty());
-	m_lsFreeSocket.Reset();
+	m_lsFreeSocket.Clear();
 
 	ReleaseGCSocketObj(TRUE);
 	ENSURE(m_lsGCSocket.IsEmpty());
@@ -792,7 +786,7 @@ void CTcpServer::WaitForWorkerThreadEnd()
 	while(remain > 0)
 	{
 		int wait = min(remain, MAXIMUM_WAIT_OBJECTS);
-		HANDLE* pHandles = (HANDLE*)_alloca(sizeof(HANDLE) * wait);
+		HANDLE* pHandles = CreateLocalObjects(HANDLE, wait);
 
 		for(int i = 0; i < wait; i++)
 			pHandles[i]	= m_vtWorkerThreads[i + index];
@@ -852,6 +846,7 @@ BOOL CTcpServer::DoAccept()
 UINT WINAPI CTcpServer::WorkerThreadProc(LPVOID pv)
 {
 	CTcpServer* pServer = (CTcpServer*)pv;
+	pServer->OnWorkerThreadStart(SELF_THREAD_ID);
 
 	while(TRUE)
 	{
@@ -908,7 +903,7 @@ UINT WINAPI CTcpServer::WorkerThreadProc(LPVOID pv)
 		pServer->HandleIo(dwConnID, pSocketObj, pBufferObj, dwBytes, dwErrorCode);
 	}
 
-	pServer->OnWorkerThreadEnd(::GetCurrentThreadId());
+	pServer->OnWorkerThreadEnd(SELF_THREAD_ID);
 
 	return 0;
 }
@@ -1423,19 +1418,18 @@ int CTcpServer::DoSendPack(TSocketObj* pSocketObj)
 
 int CTcpServer::DoSendSafe(TSocketObj* pSocketObj)
 {
-	if(pSocketObj->sndCount == 0 && !pSocketObj->IsSmooth())
+	long lRecvBuffSize = pSocketObj->GetSendBufferSize();
+
+	if(pSocketObj->sndCount < lRecvBuffSize && !pSocketObj->IsSmooth())
 	{
 		CCriSecLock locallock(pSocketObj->csSend);
 
 		if(!TSocketObj::IsValid(pSocketObj))
 			return ERROR_OBJECT_NOT_FOUND;
 
-		if(pSocketObj->sndCount == 0)
+		if(pSocketObj->sndCount < lRecvBuffSize)
 			pSocketObj->smooth = TRUE;
 	}
-
-	if(!pSocketObj->IsCanSend())
-		return NO_ERROR;
 
 	int result = NO_ERROR;
 

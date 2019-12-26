@@ -54,18 +54,20 @@
 /* IOCP 处理接收事件时最大额外读取次数 */
 #define MAX_IOCP_CONTINUE_RECEIVE				30
 
+/* Server/Agent 最大连接数 */
+#define MAX_CONNECTION_COUNT					(5 * 1000 * 1000)
 /* Server/Agent 默认最大连接数 */
-#define DEFAULT_MAX_CONNECTION_COUNT			10000
+#define DEFAULT_CONNECTION_COUNT				10000
 /* Server/Agent 默认 Socket 缓存对象锁定时间 */
-#define DEFAULT_FREE_SOCKETOBJ_LOCK_TIME		(30 * 1000)
+#define DEFAULT_FREE_SOCKETOBJ_LOCK_TIME		DEFAULT_OBJECT_CACHE_LOCK_TIME
 /* Server/Agent 默认 Socket 缓存池大小 */
-#define DEFAULT_FREE_SOCKETOBJ_POOL				600
+#define DEFAULT_FREE_SOCKETOBJ_POOL				DEFAULT_OBJECT_CACHE_POOL_SIZE
 /* Server/Agent 默认 Socket 缓存池回收阀值 */
-#define DEFAULT_FREE_SOCKETOBJ_HOLD				600
+#define DEFAULT_FREE_SOCKETOBJ_HOLD				DEFAULT_OBJECT_CACHE_POOL_HOLD
 /* Server/Agent 默认内存块缓存池大小 */
-#define DEFAULT_FREE_BUFFEROBJ_POOL				1200
+#define DEFAULT_FREE_BUFFEROBJ_POOL				DEFAULT_BUFFER_CACHE_POOL_SIZE
 /* Server/Agent 默认内存块缓存池回收阀值 */
-#define DEFAULT_FREE_BUFFEROBJ_HOLD				1200
+#define DEFAULT_FREE_BUFFEROBJ_HOLD				DEFAULT_BUFFER_CACHE_POOL_HOLD
 /* Client 默认内存块缓存池大小 */
 #define DEFAULT_CLIENT_FREE_BUFFER_POOL_SIZE	60
 /* Client 默认内存块缓存池回收阀值 */
@@ -74,9 +76,11 @@
 #define  DEFAULT_IPV4_BIND_ADDRESS				_T("0.0.0.0")
 /* IPv6 默认绑定地址 */
 #define  DEFAULT_IPV6_BIND_ADDRESS				_T("::")
+/* IPv4 广播地址 */
+#define DEFAULT_IPV4_BROAD_CAST_ADDRESS			_T("255.255.255.255")
 
 /* TCP 默认通信数据缓冲区大小 */
-#define DEFAULT_TCP_SOCKET_BUFFER_SIZE			DEFAULT_BUFFER_SIZE
+#define DEFAULT_TCP_SOCKET_BUFFER_SIZE			DEFAULT_BUFFER_CACHE_CAPACITY
 /* TCP 默认心跳包间隔 */
 #define DEFALUT_TCP_KEEPALIVE_TIME				(60 * 1000)
 /* TCP 默认心跳确认包检测间隔 */
@@ -87,7 +91,7 @@
 #define DEFAULT_TCP_SERVER_ACCEPT_SOCKET_COUNT	300
 
 /* UDP 最大数据报文最大长度 */
-#define MAXIMUM_UDP_MAX_DATAGRAM_SIZE			DEFAULT_BUFFER_SIZE
+#define MAXIMUM_UDP_MAX_DATAGRAM_SIZE			(16 * DEFAULT_BUFFER_CACHE_CAPACITY)
 /* UDP 默认数据报文最大长度 */
 #define DEFAULT_UDP_MAX_DATAGRAM_SIZE			1432
 /* UDP 默认 Receive 预投递数量 */
@@ -95,7 +99,7 @@
 /* UDP 默认监测包尝试次数 */
 #define DEFAULT_UDP_DETECT_ATTEMPTS				3
 /* UDP 默认监测包发送间隔 */
-#define DEFAULT_UDP_DETECT_INTERVAL				60
+#define DEFAULT_UDP_DETECT_INTERVAL				(60 * 1000)
 
 /* TCP Pack 包长度位数 */
 #define TCP_PACK_LENGTH_BITS					22
@@ -117,6 +121,8 @@
 #define IPV6_ADDR_SEPARATOR_CHAR				':'
 #define IPV6_ZONE_INDEX_CHAR					'%'
 
+#define ENSURE_STOP()							{if(GetState() != SS_STOPPED) Stop();}
+
 /************************************************************************
 名称：Windows Socket 组件初始化类
 描述：自动加载和卸载 Windows Socket 组件
@@ -128,7 +134,7 @@ public:
 	{
 		LPWSADATA lpTemp = lpWSAData;
 		if(!lpTemp)
-			lpTemp	= (LPWSADATA)_alloca(sizeof(WSADATA));
+			lpTemp	= CreateLocalObject(WSADATA);
 
 		m_iResult	= ::WSAStartup(MAKEWORD(majorVersion, minorVersion), lpTemp);
 	}
@@ -230,6 +236,16 @@ typedef struct hp_sockaddr
 		return sizeof(SOCKADDR_IN6);
 	}
 
+	inline int EffectAddrSize() const
+	{
+		return EffectAddrSize(family);
+	}
+
+	inline static int EffectAddrSize(ADDRESS_FAMILY f)
+	{
+		return (f == AF_INET) ? offsetof(SOCKADDR_IN, sin_zero) : sizeof(SOCKADDR_IN6);
+	}
+
 	inline static const hp_sockaddr& AnyAddr(ADDRESS_FAMILY f)
 	{
 		static const hp_sockaddr s_any_addr4(AF_INET, TRUE);
@@ -274,23 +290,21 @@ typedef struct hp_sockaddr
 	{
 		ASSERT(IsSpecified());
 
-		if(IsIPv4())
-			return ((addr4.sin_family << 16) | addr4.sin_port) ^ addr4.sin_addr.s_addr;
-		else
-		{
-			ULONG* p = (ULONG*)(((char*)this) + offsetof(SOCKADDR_IN6, sin6_addr));
-			return ((addr6.sin6_family << 16) | addr6.sin6_port) ^ addr6.sin6_flowinfo ^ p[0] ^ p[1] ^ p[2] ^ p[3] ^ p[4];
-		}
+		size_t _Val		  = 2166136261U;
+		const int size	  = EffectAddrSize();
+		const BYTE* pAddr = (const BYTE*)Addr();
+
+		for(int i = 0; i < size; i++)
+			_Val = 16777619U * _Val ^ (size_t)pAddr[i];
+
+		return (_Val);
 	}
 
 	bool EqualTo(const hp_sockaddr& other) const
 	{
 		ASSERT(IsSpecified() && other.IsSpecified());
 
-		if(IsIPv4())
-			return memcmp(this, &other, offsetof(SOCKADDR_IN, sin_zero)) == 0;
-		else
-			return memcmp(this, &other, sizeof(addr6)) == 0;
+		return EqualMemory(this, &other, EffectAddrSize());
 	}
 
 	hp_sockaddr(ADDRESS_FAMILY f = AF_UNSPEC, BOOL bZeroAddr = FALSE)
@@ -458,12 +472,6 @@ typedef TBufferObjListT<TBufferObj>		TBufferObjList;
 /* UDP 数据缓冲区链表模板 */
 typedef TBufferObjListT<TUdpBufferObj>	TUdpBufferObjList;
 
-/* 数据缓冲区结构链表 */
-typedef CRingPool<TBufferObj>			TBufferObjPtrList;
-
-/* Udp 数据缓冲区结构链表 */
-typedef CRingPool<TUdpBufferObj>		TUdpBufferObjPtrList;
-
 /* TBufferObj 智能指针 */
 typedef TItemPtrT<TBufferObj>			TBufferObjPtr;
 /* TUdpBufferObj 智能指针 */
@@ -472,7 +480,7 @@ typedef TItemPtrT<TUdpBufferObj>		TUdpBufferObjPtr;
 /* Socket 缓冲区基础结构 */
 struct TSocketObjBase
 {
-	static const long DEF_SNDBUFF_SIZE = 8192;
+	static const long DEF_SNDBUFF_SIZE = 16 * 1024;
 
 	CPrivateHeap& heap;
 
@@ -491,7 +499,6 @@ struct TSocketObjBase
 
 	DWORD		activeTime;
 
-	long			sndBuffSize;
 	volatile BOOL	smooth;
 	volatile long	pending;
 	volatile long	sndCount;
@@ -521,19 +528,12 @@ struct TSocketObjBase
 
 	long Pending()		{return pending;}
 	BOOL IsPending()	{return pending > 0;}
-	BOOL IsCanSend()	{return sndCount <= sndBuffSize;}
 	BOOL IsSmooth()		{return smooth;}
 	void TurnOnSmooth()	{smooth = TRUE;}
 
 	BOOL TurnOffSmooth()
 		{return ::InterlockedCompareExchange((volatile long*)&smooth, FALSE, TRUE) == TRUE;}
 	
-	BOOL ResetSndBuffSize(SOCKET socket)
-	{
-		int len = (int)(sizeof(sndBuffSize));
-		return getsockopt(socket, SOL_SOCKET, SO_SNDBUF, (CHAR*)&sndBuffSize, &len) != 0;
-	}
-
 	BOOL HasConnected()							{return connected;}
 	void SetConnected(BOOL bConnected = TRUE)	{connected = bConnected;}
 
@@ -547,7 +547,6 @@ struct TSocketObjBase
 		recving		= FALSE;
 		pending		= 0;
 		sndCount	= 0;
-		sndBuffSize	= DEF_SNDBUFF_SIZE;
 		extra		= nullptr;
 		reserved	= nullptr;
 		reserved2	= nullptr;
@@ -564,6 +563,20 @@ struct TSocketObj : public TSocketObjBase
 	SOCKET			socket;
 	CStringA		host;
 	TBufferObjList	sndBuff;
+
+	BOOL IsCanSend() {return sndCount <= GetSendBufferSize();}
+
+	long GetSendBufferSize()
+	{
+		long lSize;
+		int len	= (int)(sizeof(lSize));
+		int rs	= getsockopt(socket, SOL_SOCKET, SO_SNDBUF, (CHAR*)&lSize, &len);
+
+		if(rs == SOCKET_ERROR || lSize <= 0)
+			lSize = DEF_SNDBUFF_SIZE;
+
+		return lSize;
+	}
 
 	static TSocketObj* Construct(CPrivateHeap& hp, CBufferObjPool& bfPool)
 	{
@@ -649,6 +662,9 @@ struct TUdpSocketObj : public TSocketObjBase
 
 	TUdpBufferObjList	sndBuff;
 	volatile DWORD		detectFails;
+
+	BOOL IsCanSend			() {return sndCount <= GetSendBufferSize();}
+	long GetSendBufferSize	() {return (4 * DEF_SNDBUFF_SIZE);}
 
 	static TUdpSocketObj* Construct(CPrivateHeap& hp, CUdpBufferObjPool& bfPool)
 	{
@@ -762,17 +778,19 @@ struct TClientCloseContext
 	BOOL bFireOnClose;
 	EnSocketOperation enOperation;
 	int iErrorCode;
+	BOOL bNotify;
 
-	TClientCloseContext(BOOL bFire = TRUE, EnSocketOperation enOp = SO_CLOSE, int iCode = SE_OK)
+	TClientCloseContext(BOOL bFire = TRUE, EnSocketOperation enOp = SO_CLOSE, int iCode = SE_OK, BOOL bNtf = TRUE)
 	{
-		Reset(bFire, enOp, iCode);
+		Reset(bFire, enOp, iCode, bNtf);
 	}
 
-	void Reset(BOOL bFire = TRUE, EnSocketOperation enOp = SO_CLOSE, int iCode = SE_OK)
+	void Reset(BOOL bFire = TRUE, EnSocketOperation enOp = SO_CLOSE, int iCode = SE_OK, BOOL bNtf = TRUE)
 	{
 		bFireOnClose = bFire;
 		enOperation	 = enOp;
 		iErrorCode	 = iCode;
+		bNotify		 = bNtf;
 	}
 
 };
@@ -847,7 +865,8 @@ enum EnIocpCommand
 	IOCP_CMD_ACCEPT		= 0xFFFFFFF1,	// 接受连接
 	IOCP_CMD_DISCONNECT	= 0xFFFFFFF2,	// 断开连接
 	IOCP_CMD_SEND		= 0xFFFFFFF3,	// 发送数据
-	IOCP_CMD_UNPAUSE	= 0xFFFFFFF4	// 取消暂停
+	IOCP_CMD_UNPAUSE	= 0xFFFFFFF4,	// 取消暂停
+	IOCP_CMD_TIMEOUT	= 0xFFFFFFF5	// 保活超时
 };
 
 /* IOCP 命令处理动作 */
@@ -864,6 +883,7 @@ BOOL PostIocpAccept(HANDLE hIOCP);
 BOOL PostIocpDisconnect(HANDLE hIOCP, CONNID dwConnID);
 BOOL PostIocpSend(HANDLE hIOCP, CONNID dwConnID);
 BOOL PostIocpUnpause(HANDLE hIOCP, CONNID dwConnID);
+BOOL PostIocpTimeout(HANDLE hIOCP, CONNID dwConnID);
 BOOL PostIocpClose(HANDLE hIOCP, CONNID dwConnID, int iErrorCode);
 
 /************************************************************************
@@ -904,6 +924,12 @@ int SSO_UDP_ConnReset		(SOCKET sock, BOOL bNewBehavior = TRUE);
 
 /* 生成 Connection ID */
 CONNID GenerateConnectionID	();
+/* 检测 UDP 连接关闭通知 */
+int IsUdpCloseNotify		(const BYTE* pData, int iLength);
+/* 发送 UDP 连接关闭通知 */
+int SendUdpCloseNotify		(SOCKET sock);
+/* 发送 UDP 连接关闭通知 */
+int SendUdpCloseNotify		(SOCKET sock, const HP_SOCKADDR& remoteAddr);
 /* 关闭 Socket */
 int ManualCloseSocket		(SOCKET sock, int iShutdownFlag = 0xFF, BOOL bGraceful = TRUE);
 /* 投递 AccceptEx()，并把 WSA_IO_PENDING 转换为 NO_ERROR */

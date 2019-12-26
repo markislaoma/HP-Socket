@@ -2,11 +2,11 @@
 * Copyright: JessMA Open Source (ldcsaa@gmail.com)
 *
 * Author	: Bruce Liang
-* Website	: http://www.jessma.org
-* Project	: https://github.com/ldcsaa
+* Website	: https://github.com/ldcsaa
+* Project	: https://github.com/ldcsaa/HP-Socket
 * Blog		: http://www.cnblogs.com/ldcsaa
 * Wiki		: http://www.oschina.net/p/hp-socket
-* QQ Group	: 75375912, 44636872
+* QQ Group	: 44636872, 75375912
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@
 
 CMutexRWLock::CMutexRWLock()
 	: m_nActive			(0)
-	, m_nReadCount		(0)
 	, m_dwWriterTID		(0)
 {
 
@@ -34,7 +33,6 @@ CMutexRWLock::CMutexRWLock()
 CMutexRWLock::~CMutexRWLock()
 {
 	ASSERT(m_nActive	 == 0);
-	ASSERT(m_nReadCount	 == 0);
 	ASSERT(m_dwWriterTID == 0);
 }
 
@@ -50,10 +48,7 @@ VOID CMutexRWLock::WaitToRead()
 		else if(m_nActive == 0)
 		{
 			if(m_mtx.try_lock_shared())
-			{
-				++m_nReadCount;
 				++m_nActive;
-			}
 			else
 				bWait = TRUE;
 		}
@@ -66,11 +61,7 @@ VOID CMutexRWLock::WaitToRead()
 		m_mtx.lock_shared();
 
 		CSpinLock locallock(m_cs);
-
-		{
-			++m_nReadCount;
-			++m_nActive;
-		}
+		++m_nActive;
 	}
 }
 
@@ -117,15 +108,12 @@ VOID CMutexRWLock::ReadDone()
 
 	if(m_nActive > 0)
 	{
-		ASSERT(m_nReadCount > 0);
-
-		CSpinLock locallock(m_cs);
-
-		if(--m_nActive == 0)
 		{
-			for(; m_nReadCount > 0; --m_nReadCount)
-				m_mtx.unlock_shared();
+			CSpinLock locallock(m_cs);
+			--m_nActive;
 		}
+
+		m_mtx.unlock_shared();
 	}
 	else
 		ASSERT(IsOwner());
@@ -136,13 +124,20 @@ VOID CMutexRWLock::WriteDone()
 	ASSERT(IsOwner());
 	ASSERT(m_nActive < 0);
 
-	CSpinLock locallock(m_cs);
+	BOOL bDone;
 
-	if(++m_nActive == 0)
+	{
+		CSpinLock locallock(m_cs);
+		bDone = (++m_nActive == 0);
+	}
+
+	if(bDone)
 	{
 		DetachOwner();
 		m_mtx.unlock();
-	}		
+	}
+	else
+		ASSERT(IsOwner());
 }
 
 CSEMRWLock::CSEMRWLock()

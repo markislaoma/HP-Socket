@@ -2,11 +2,11 @@
 * Copyright: JessMA Open Source (ldcsaa@gmail.com)
 *
 * Author	: Bruce Liang
-* Website	: http://www.jessma.org
-* Project	: https://github.com/ldcsaa
+* Website	: https://github.com/ldcsaa
+* Project	: https://github.com/ldcsaa/HP-Socket
 * Blog		: http://www.cnblogs.com/ldcsaa
 * Wiki		: http://www.oschina.net/p/hp-socket
-* QQ Group	: 75375912, 44636872
+* QQ Group	: 44636872, 75375912
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ public:
 		}
 	};
 
-	friend class TWorker;
+	friend struct TWorker;
 
 public:
 
@@ -293,7 +293,7 @@ public:
 	THR_ID GetThreadID	() const {return m_ulThreadID;}
 	NTHR_ID GetNativeID	() const {return m_lNativeID;}
 
-	BOOL IsInMyThread		()					const {return IsMyThreadID(::GetCurrentThreadId());}
+	BOOL IsInMyThread		()					const {return IsMyThreadID(SELF_THREAD_ID);}
 	BOOL IsMyThreadID		(THR_ID ulThreadID)	const {return ::IsSameThread(ulThreadID, m_ulThreadID);}
 	BOOL IsMyNativeThreadID	(NTHR_ID lNativeID)	const {return ::IsSameNativeThread(lNativeID, m_lNativeID);}
 

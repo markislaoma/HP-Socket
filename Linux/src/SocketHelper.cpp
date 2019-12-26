@@ -36,6 +36,9 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
+static const BYTE s_szUdpCloseNotify[]	= {0xBE, 0xB6, 0x1F, 0xEB, 0xDA, 0x52, 0x46, 0xBA, 0x92, 0x33, 0x59, 0xDB, 0xBF, 0xE6, 0xC8, 0xE4};
+static int s_iUdpCloseNotifySize		= ARRAY_SIZE(s_szUdpCloseNotify);
+
 const hp_addr hp_addr::ANY_ADDR4(AF_INET, TRUE);
 const hp_addr hp_addr::ANY_ADDR6(AF_INET6, TRUE);
 
@@ -102,7 +105,7 @@ BOOL GetSockAddr(LPCTSTR lpszAddress, USHORT usPort, HP_SOCKADDR& addr)
 {
 	if(addr.family != AF_INET && addr.family != AF_INET6)
 	{
-		::WSASetLastError(EADDRNOTAVAIL);
+		::WSASetLastError(ERROR_ADDRNOTAVAIL);
 		return FALSE;
 	}
 
@@ -160,7 +163,6 @@ BOOL GetSockAddrByHostName(LPCTSTR lpszHost, USHORT usPort, HP_SOCKADDR& addr)
 		return GetSockAddr(lpszHost, usPort, addr);
 
 	return GetSockAddrByHostNameDirectly(lpszHost, usPort, addr);
-
 }
 
 BOOL GetSockAddrByHostNameDirectly(LPCTSTR lpszHost, USHORT usPort, HP_SOCKADDR& addr)
@@ -170,7 +172,11 @@ BOOL GetSockAddrByHostNameDirectly(LPCTSTR lpszHost, USHORT usPort, HP_SOCKADDR&
 	addrinfo* pInfo	= nullptr;
 	addrinfo hints	= {0};
 
+#if defined(__ANDROID__)
+	hints.ai_flags		= 0;
+#else
 	hints.ai_flags		= AI_ALL;
+#endif
 	hints.ai_family		= addr.family;
 	hints.ai_socktype	= SOCK_STREAM;
 
@@ -200,7 +206,7 @@ BOOL GetSockAddrByHostNameDirectly(LPCTSTR lpszHost, USHORT usPort, HP_SOCKADDR&
 	if(isOK)
 		addr.SetPort(usPort);
 	else
-		::WSASetLastError(EHOSTUNREACH);
+		::WSASetLastError(ERROR_HOSTUNREACH);
 
 	return isOK;
 }
@@ -217,7 +223,7 @@ BOOL EnumHostIPAddresses(LPCTSTR lpszHost, EnIPAddrType enType, LPTIPAddr** lppp
 
 	if(usFamily == 0xFF)
 	{
-		::WSASetLastError(EAFNOSUPPORT);
+		::WSASetLastError(ERROR_AFNOSUPPORT);
 		return FALSE;
 	}
 
@@ -229,7 +235,7 @@ BOOL EnumHostIPAddresses(LPCTSTR lpszHost, EnIPAddrType enType, LPTIPAddr** lppp
 	{
 		if(usFamily != AF_UNSPEC && usFamily != usFamily2)
 		{
-			::WSASetLastError(EHOSTUNREACH);
+			::WSASetLastError(ERROR_HOSTUNREACH);
 			return FALSE;
 		}
 
@@ -488,7 +494,7 @@ int SSO_KeepAliveVals(SOCKET sock, BOOL bOnOff, DWORD dwIdle, DWORD dwInterval, 
 
 		if(dwIdle == 0 || dwInterval == 0 || dwCount == 0)
 		{
-			::WSASetLastError(EINVAL);
+			::WSASetLastError(ERROR_INVALID_PARAMETER);
 			return SOCKET_ERROR;
 		}
 	}
@@ -556,6 +562,22 @@ CONNID GenerateConnectionID()
 		dwConnID = ::InterlockedIncrement(&s_dwConnID);
 
 	return dwConnID;
+}
+
+int IsUdpCloseNotify(const BYTE* pData, int iLength)
+{
+	return (iLength == s_iUdpCloseNotifySize								&&
+			memcmp(pData, s_szUdpCloseNotify, s_iUdpCloseNotifySize) == 0)	;
+}
+
+int SendUdpCloseNotify(SOCKET sock)
+{
+	return (int)send(sock, (LPCSTR)s_szUdpCloseNotify, s_iUdpCloseNotifySize, 0);
+}
+
+int SendUdpCloseNotify(SOCKET sock, const HP_SOCKADDR& remoteAddr)
+{
+	return (int)sendto(sock, (LPCSTR)s_szUdpCloseNotify, s_iUdpCloseNotifySize, 0, remoteAddr.Addr(), remoteAddr.AddrSize());
 }
 
 int ManualCloseSocket(SOCKET sock, int iShutdownFlag, BOOL bGraceful)

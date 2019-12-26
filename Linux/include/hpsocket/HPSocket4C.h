@@ -51,7 +51,6 @@ Release:
 		4. x64/libhpsocket4c_d.so		- (64位/MBCS/DeBug)
 
 		<-- 静态链接库 -->
-		!!注意!!：使用 HPSocket 静态库时，需要在工程属性中定义预处理宏 -> HPSOCKET_STATIC_LIB
 		1. x86/static/libhpsocket4c.a	- (32位/MBCS/Release)
 		2. x86/static/libhpsocket4c_d.a	- (32位/MBCS/DeBug)
 		3. x64/static/libhpsocket4c.a	- (64位/MBCS/Release)
@@ -89,6 +88,8 @@ typedef HP_Object	HP_TcpPackClient;
 typedef HP_Object	HP_UdpServer;
 typedef HP_Object	HP_UdpClient;
 typedef HP_Object	HP_UdpCast;
+typedef HP_Object	HP_UdpArqServer;
+typedef HP_Object	HP_UdpArqClient;
 
 typedef HP_Object	HP_Listener;
 typedef HP_Object	HP_ServerListener;
@@ -110,6 +111,8 @@ typedef HP_Object	HP_TcpPackClientListener;
 typedef HP_Object	HP_UdpServerListener;
 typedef HP_Object	HP_UdpClientListener;
 typedef HP_Object	HP_UdpCastListener;
+typedef HP_Object	HP_UdpArqServerListener;
+typedef HP_Object	HP_UdpArqClientListener;
 
 typedef HP_Object	HP_Http;
 typedef HP_Object	HP_HttpServer;
@@ -247,6 +250,10 @@ HPSOCKET_API HP_UdpServer __HP_CALL Create_HP_UdpServer(HP_UdpServerListener pLi
 HPSOCKET_API HP_UdpClient __HP_CALL Create_HP_UdpClient(HP_UdpClientListener pListener);
 // 创建 HP_UdpCast 对象
 HPSOCKET_API HP_UdpCast __HP_CALL Create_HP_UdpCast(HP_UdpCastListener pListener);
+// 创建 HP_UdpArqServer 对象
+HPSOCKET_API HP_UdpArqServer __HP_CALL Create_HP_UdpArqServer(HP_UdpServerListener pListener);
+// 创建 HP_UdpArqClient 对象
+HPSOCKET_API HP_UdpArqClient __HP_CALL Create_HP_UdpArqClient(HP_UdpClientListener pListener);
 
 // 销毁 HP_UdpServer 对象
 HPSOCKET_API void __HP_CALL Destroy_HP_UdpServer(HP_UdpServer pServer);
@@ -254,6 +261,10 @@ HPSOCKET_API void __HP_CALL Destroy_HP_UdpServer(HP_UdpServer pServer);
 HPSOCKET_API void __HP_CALL Destroy_HP_UdpClient(HP_UdpClient pClient);
 // 销毁 HP_UdpCast 对象
 HPSOCKET_API void __HP_CALL Destroy_HP_UdpCast(HP_UdpCast pCast);
+// 销毁 HP_UdpArqServer 对象
+HPSOCKET_API void __HP_CALL Destroy_HP_UdpArqServer(HP_UdpArqServer pServer);
+// 销毁 HP_UdpArqClient 对象
+HPSOCKET_API void __HP_CALL Destroy_HP_UdpArqClient(HP_UdpArqClient pClient);
 
 // 创建 HP_UdpServerListener 对象
 HPSOCKET_API HP_UdpServerListener __HP_CALL Create_HP_UdpServerListener();
@@ -261,6 +272,10 @@ HPSOCKET_API HP_UdpServerListener __HP_CALL Create_HP_UdpServerListener();
 HPSOCKET_API HP_UdpClientListener __HP_CALL Create_HP_UdpClientListener();
 // 创建 HP_UdpCastListener 对象
 HPSOCKET_API HP_UdpCastListener __HP_CALL Create_HP_UdpCastListener();
+// 创建 HP_UdpArqServerListener 对象
+HPSOCKET_API HP_UdpArqServerListener __HP_CALL Create_HP_UdpArqServerListener();
+// 创建 HP_UdpArqClientListener 对象
+HPSOCKET_API HP_UdpArqClientListener __HP_CALL Create_HP_UdpArqClientListener();
 
 // 销毁 HP_UdpServerListener 对象
 HPSOCKET_API void __HP_CALL Destroy_HP_UdpServerListener(HP_UdpServerListener pListener);
@@ -268,6 +283,10 @@ HPSOCKET_API void __HP_CALL Destroy_HP_UdpServerListener(HP_UdpServerListener pL
 HPSOCKET_API void __HP_CALL Destroy_HP_UdpClientListener(HP_UdpClientListener pListener);
 // 销毁 HP_UdpCastListener 对象
 HPSOCKET_API void __HP_CALL Destroy_HP_UdpCastListener(HP_UdpCastListener pListener);
+// 销毁 HP_UdpArqServerListener 对象
+HPSOCKET_API void __HP_CALL Destroy_HP_UdpArqServerListener(HP_UdpArqServerListener pListener);
+// 销毁 HP_UdpArqClientListener 对象
+HPSOCKET_API void __HP_CALL Destroy_HP_UdpArqClientListener(HP_UdpArqClientListener pListener);
 
 #endif
 
@@ -569,12 +588,60 @@ HPSOCKET_API DWORD __HP_CALL HP_UdpServer_GetPostReceiveCount(HP_UdpServer pServ
 
 /* 设置监测包尝试次数（0 则不发送监测跳包，如果超过最大尝试次数则认为已断线） */
 HPSOCKET_API void __HP_CALL HP_UdpServer_SetDetectAttempts(HP_UdpServer pServer, DWORD dwDetectAttempts);
-/* 设置监测包发送间隔（秒，0 不发送监测包） */
+/* 设置监测包发送间隔（毫秒，0 不发送监测包） */
 HPSOCKET_API void __HP_CALL HP_UdpServer_SetDetectInterval(HP_UdpServer pServer, DWORD dwDetectInterval);
 /* 获取心跳检查次数 */
 HPSOCKET_API DWORD __HP_CALL HP_UdpServer_GetDetectAttempts(HP_UdpServer pServer);
 /* 获取心跳检查间隔 */
 HPSOCKET_API DWORD __HP_CALL HP_UdpServer_GetDetectInterval(HP_UdpServer pServer);
+
+/**********************************************************************************/
+/*************************** UDP ARQ Server 属性访问方法 ***************************/
+
+/* 设置是否开启 nodelay 模式（默认：FALSE，不开启） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetNoDelay(HP_UdpArqServer pServer, BOOL bNoDelay);
+/* 设置是否关闭拥塞控制（默认：FALSE，不关闭） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetTurnoffCongestCtrl(HP_UdpArqServer pServer, BOOL bTurnOff);
+/* 设置数据刷新间隔（毫秒，默认：60） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetFlushInterval(HP_UdpArqServer pServer, DWORD dwFlushInterval);
+/* 设置快速重传 ACK 跨越次数（默认：0，关闭快速重传） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetResendByAcks(HP_UdpArqServer pServer, DWORD dwResendByAcks);
+/* 设置发送窗口大小（数据包数量，默认：128） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetSendWndSize(HP_UdpArqServer pServer, DWORD dwSendWndSize);
+/* 设置接收窗口大小（数据包数量，默认：512） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetRecvWndSize(HP_UdpArqServer pServer, DWORD dwRecvWndSize);
+/* 设置最小重传超时时间（毫秒，默认：30） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetMinRto(HP_UdpArqServer pServer, DWORD dwMinRto);
+/* 设置最大传输单元（默认：0，与 SetMaxDatagramSize() 一致） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetMaxTransUnit(HP_UdpArqServer pServer, DWORD dwMaxTransUnit);
+/* 设置最大数据包大小（默认：4096） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetMaxMessageSize(HP_UdpArqServer pServer, DWORD dwMaxMessageSize);
+/* 设置握手超时时间（毫秒，默认：5000） */
+HPSOCKET_API void __HP_CALL HP_UdpArqServer_SetHandShakeTimeout(HP_UdpArqServer pServer, DWORD dwHandShakeTimeout);
+
+/* 检测是否开启 nodelay 模式 */
+HPSOCKET_API BOOL __HP_CALL HP_UdpArqServer_IsNoDelay(HP_UdpArqServer pServer);
+/* 检测是否关闭拥塞控制 */
+HPSOCKET_API BOOL __HP_CALL HP_UdpArqServer_IsTurnoffCongestCtrl(HP_UdpArqServer pServer);
+/* 获取数据刷新间隔 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqServer_GetFlushInterval(HP_UdpArqServer pServer);
+/* 获取快速重传 ACK 跨越次数 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqServer_GetResendByAcks(HP_UdpArqServer pServer);
+/* 获取发送窗口大小 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqServer_GetSendWndSize(HP_UdpArqServer pServer);
+/* 获取接收窗口大小 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqServer_GetRecvWndSize(HP_UdpArqServer pServer);
+/* 获取最小重传超时时间 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqServer_GetMinRto(HP_UdpArqServer pServer);
+/* 获取最大传输单元 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqServer_GetMaxTransUnit(HP_UdpArqServer pServer);
+/* 获取最大数据包大小 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqServer_GetMaxMessageSize(HP_UdpArqServer pServer);
+/* 获取握手超时时间 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqServer_GetHandShakeTimeout(HP_UdpArqServer pServer);
+
+/* 获取等待发送包数量 */
+HPSOCKET_API BOOL __HP_CALL HP_UdpArqServer_GetWaitingSendMessageCount(HP_UdpArqServer pServer, HP_CONNID dwConnID, int* piCount);
 
 #endif
 
@@ -1082,12 +1149,60 @@ HPSOCKET_API DWORD __HP_CALL HP_UdpClient_GetMaxDatagramSize(HP_UdpClient pClien
 
 /* 设置监测包尝试次数（0 则不发送监测跳包，如果超过最大尝试次数则认为已断线） */
 HPSOCKET_API void __HP_CALL HP_UdpClient_SetDetectAttempts(HP_UdpClient pClient, DWORD dwDetectAttempts);
-/* 设置监测包发送间隔（秒，0 不发送监测包） */
+/* 设置监测包发送间隔（毫秒，0 不发送监测包） */
 HPSOCKET_API void __HP_CALL HP_UdpClient_SetDetectInterval(HP_UdpClient pClient, DWORD dwDetectInterval);
 /* 获取心跳检查次数 */
 HPSOCKET_API DWORD __HP_CALL HP_UdpClient_GetDetectAttempts(HP_UdpClient pClient);
 /* 获取心跳检查间隔 */
 HPSOCKET_API DWORD __HP_CALL HP_UdpClient_GetDetectInterval(HP_UdpClient pClient);
+
+/**********************************************************************************/
+/*************************** UDP ARQ Client 属性访问方法 ***************************/
+
+/* 设置是否开启 nodelay 模式（默认：FALSE，不开启） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetNoDelay(HP_UdpArqClient pClient, BOOL bNoDelay);
+/* 设置是否关闭拥塞控制（默认：FALSE，不关闭） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetTurnoffCongestCtrl(HP_UdpArqClient pClient, BOOL bTurnOff);
+/* 设置数据刷新间隔（毫秒，默认：60） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetFlushInterval(HP_UdpArqClient pClient, DWORD dwFlushInterval);
+/* 设置快速重传 ACK 跨越次数（默认：0，关闭快速重传） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetResendByAcks(HP_UdpArqClient pClient, DWORD dwResendByAcks);
+/* 设置发送窗口大小（数据包数量，默认：128） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetSendWndSize(HP_UdpArqClient pClient, DWORD dwSendWndSize);
+/* 设置接收窗口大小（数据包数量，默认：512） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetRecvWndSize(HP_UdpArqClient pClient, DWORD dwRecvWndSize);
+/* 设置最小重传超时时间（毫秒，默认：30） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetMinRto(HP_UdpArqClient pClient, DWORD dwMinRto);
+/* 设置最大传输单元（默认：0，与 SetMaxDatagramSize() 一致） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetMaxTransUnit(HP_UdpArqClient pClient, DWORD dwMaxTransUnit);
+/* 设置最大数据包大小（默认：4096） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetMaxMessageSize(HP_UdpArqClient pClient, DWORD dwMaxMessageSize);
+/* 设置握手超时时间（毫秒，默认：5000） */
+HPSOCKET_API void __HP_CALL HP_UdpArqClient_SetHandShakeTimeout(HP_UdpArqClient pClient, DWORD dwHandShakeTimeout);
+
+/* 检测是否开启 nodelay 模式 */
+HPSOCKET_API BOOL __HP_CALL HP_UdpArqClient_IsNoDelay(HP_UdpArqClient pClient);
+/* 检测是否关闭拥塞控制 */
+HPSOCKET_API BOOL __HP_CALL HP_UdpArqClient_IsTurnoffCongestCtrl(HP_UdpArqClient pClient);
+/* 获取数据刷新间隔 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqClient_GetFlushInterval(HP_UdpArqClient pClient);
+/* 获取快速重传 ACK 跨越次数 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqClient_GetResendByAcks(HP_UdpArqClient pClient);
+/* 获取发送窗口大小 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqClient_GetSendWndSize(HP_UdpArqClient pClient);
+/* 获取接收窗口大小 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqClient_GetRecvWndSize(HP_UdpArqClient pClient);
+/* 获取最小重传超时时间 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqClient_GetMinRto(HP_UdpArqClient pClient);
+/* 获取最大传输单元 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqClient_GetMaxTransUnit(HP_UdpArqClient pClient);
+/* 获取最大数据包大小 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqClient_GetMaxMessageSize(HP_UdpArqClient pClient);
+/* 获取握手超时时间 */
+HPSOCKET_API DWORD __HP_CALL HP_UdpArqClient_GetHandShakeTimeout(HP_UdpArqClient pClient);
+
+/* 获取等待发送包数量 */
+HPSOCKET_API BOOL __HP_CALL HP_UdpArqClient_GetWaitingSendMessageCount(HP_UdpArqClient pClient, int* piCount);
 
 /**********************************************************************************/
 /****************************** UDP Cast 属性访问方法 ******************************/
@@ -1616,6 +1731,19 @@ HPSOCKET_API BOOL __HP_CALL HP_HttpServer_SendResponse(HP_HttpServer pServer, HP
 HPSOCKET_API BOOL __HP_CALL HP_HttpServer_SendLocalFile(HP_HttpServer pServer, HP_CONNID dwConnID, LPCSTR lpszFileName, USHORT usStatusCode, LPCSTR lpszDesc, const HP_THeader lpHeaders[], int iHeaderCount);
 
 /*
+* 名称：发送 Chunked 数据分片
+* 描述：向对端发送 Chunked 数据分片
+*
+* 参数：		dwConnID		-- 连接 ID
+*			pData			-- Chunked 数据分片
+*			iLength			-- 数据分片长度（为 0 表示结束分片）
+*			lpszExtensions	-- 扩展属性（默认：nullptr）
+* 返回值：	TRUE			-- 成功
+*			FALSE			-- 失败
+*/
+HPSOCKET_API BOOL __HP_CALL HP_HttpServer_SendChunkData(HP_HttpServer pServer, HP_CONNID dwConnID, const BYTE* pData /*= nullptr*/, int iLength /*= 0*/, LPCSTR lpszExtensions /*= nullptr*/);
+
+/*
 * 名称：发送 WebSocket 消息
 * 描述：向对端端发送 WebSocket 消息
 *		
@@ -1623,7 +1751,6 @@ HPSOCKET_API BOOL __HP_CALL HP_HttpServer_SendLocalFile(HP_HttpServer pServer, H
 *			bFinal			-- 是否结束帧
 *			iReserved		-- RSV1/RSV2/RSV3 各 1 位
 *			iOperationCode	-- 操作码：0x0 - 0xF
-*			lpszMask		-- 掩码（nullptr 或 4 字节掩码，如果为 nullptr 则没有掩码）
 *			pData			-- 消息体数据缓冲区
 *			iLength			-- 消息体数据长度
 *			ullBodyLen		-- 消息总长度
@@ -1634,7 +1761,7 @@ HPSOCKET_API BOOL __HP_CALL HP_HttpServer_SendLocalFile(HP_HttpServer pServer, H
 * 返回值：	TRUE			-- 成功
 *			FALSE			-- 失败
 */
-HPSOCKET_API BOOL __HP_CALL HP_HttpServer_SendWSMessage(HP_HttpServer pServer, HP_CONNID dwConnID, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4], BYTE* pData, int iLength, ULONGLONG ullBodyLen);
+HPSOCKET_API BOOL __HP_CALL HP_HttpServer_SendWSMessage(HP_HttpServer pServer, HP_CONNID dwConnID, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE* pData, int iLength, ULONGLONG ullBodyLen);
 
 /*
 * 名称：释放连接
@@ -1751,6 +1878,19 @@ HPSOCKET_API BOOL __HP_CALL HP_HttpAgent_SendRequest(HP_HttpAgent pAgent, HP_CON
 */
 HPSOCKET_API BOOL __HP_CALL HP_HttpAgent_SendLocalFile(HP_HttpAgent pAgent, HP_CONNID dwConnID, LPCSTR lpszFileName, LPCSTR lpszMethod, LPCSTR lpszPath, const HP_THeader lpHeaders[], int iHeaderCount);
 
+/*
+* 名称：发送 Chunked 数据分片
+* 描述：向对端发送 Chunked 数据分片
+*
+* 参数：		dwConnID		-- 连接 ID
+*			pData			-- Chunked 数据分片
+*			iLength			-- 数据分片长度（为 0 表示结束分片）
+*			lpszExtensions	-- 扩展属性（默认：nullptr）
+* 返回值：	TRUE			-- 成功
+*			FALSE			-- 失败
+*/
+HPSOCKET_API BOOL __HP_CALL HP_HttpAgent_SendChunkData(HP_HttpAgent pAgent, HP_CONNID dwConnID, const BYTE* pData /*= nullptr*/, int iLength /*= 0*/, LPCSTR lpszExtensions /*= nullptr*/);
+
 /* 发送 POST 请求 */
 HPSOCKET_API BOOL __HP_CALL HP_HttpAgent_SendPost(HP_HttpAgent pAgent, HP_CONNID dwConnID, LPCSTR lpszPath, const HP_THeader lpHeaders[], int iHeaderCount, const BYTE* pBody, int iLength);
 /* 发送 PUT 请求 */
@@ -1789,7 +1929,7 @@ HPSOCKET_API BOOL __HP_CALL HP_HttpAgent_SendConnect(HP_HttpAgent pAgent, HP_CON
 * 返回值：	TRUE			-- 成功
 *			FALSE			-- 失败
 */
-HPSOCKET_API BOOL __HP_CALL HP_HttpAgent_SendWSMessage(HP_HttpAgent pAgent, HP_CONNID dwConnID, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4], BYTE* pData, int iLength, ULONGLONG ullBodyLen);
+HPSOCKET_API BOOL __HP_CALL HP_HttpAgent_SendWSMessage(HP_HttpAgent pAgent, HP_CONNID dwConnID, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4], const BYTE* pData, int iLength, ULONGLONG ullBodyLen);
 
 /*
 * 名称：启动 HTTP 通信
@@ -1889,6 +2029,18 @@ HPSOCKET_API BOOL __HP_CALL HP_HttpClient_SendRequest(HP_HttpClient pClient, LPC
 */
 HPSOCKET_API BOOL __HP_CALL HP_HttpClient_SendLocalFile(HP_HttpClient pClient, LPCSTR lpszFileName, LPCSTR lpszMethod, LPCSTR lpszPath, const HP_THeader lpHeaders[], int iHeaderCount);
 
+/*
+* 名称：发送 Chunked 数据分片
+* 描述：向对端发送 Chunked 数据分片
+*
+* 参数：		pData			-- Chunked 数据分片
+*			iLength			-- 数据分片长度（为 0 表示结束分片）
+*			lpszExtensions	-- 扩展属性（默认：nullptr）
+* 返回值：	TRUE			-- 成功
+*			FALSE			-- 失败
+*/
+HPSOCKET_API BOOL __HP_CALL HP_HttpClient_SendChunkData(HP_HttpClient pClient, const BYTE* pData /*= nullptr*/, int iLength /*= 0*/, LPCSTR lpszExtensions /*= nullptr*/);
+
 /* 发送 POST 请求 */
 HPSOCKET_API BOOL __HP_CALL HP_HttpClient_SendPost(HP_HttpClient pClient, LPCSTR lpszPath, const HP_THeader lpHeaders[], int iHeaderCount, const BYTE* pBody, int iLength);
 /* 发送 PUT 请求 */
@@ -1926,7 +2078,7 @@ HPSOCKET_API BOOL __HP_CALL HP_HttpClient_SendConnect(HP_HttpClient pClient, LPC
 * 返回值：	TRUE			-- 成功
 *			FALSE			-- 失败
 */
-HPSOCKET_API BOOL __HP_CALL HP_HttpClient_SendWSMessage(HP_HttpClient pClient, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4], BYTE* pData, int iLength, ULONGLONG ullBodyLen);
+HPSOCKET_API BOOL __HP_CALL HP_HttpClient_SendWSMessage(HP_HttpClient pClient, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4], const BYTE* pData, int iLength, ULONGLONG ullBodyLen);
 
 /*
 * 名称：启动 HTTP 通信
@@ -2010,7 +2162,7 @@ HPSOCKET_API BOOL __HP_CALL HP_HttpClient_IsHttpAutoStart(HP_HttpClient pClient)
 * 返回值：	TRUE			-- 成功
 *			FALSE			-- 失败
 */
-HPSOCKET_API BOOL __HP_CALL HP_HttpSyncClient_OpenUrl(HP_HttpSyncClient pClient, LPCSTR lpszMethod, LPCSTR lpszUrl, const THeader lpHeaders[], int iHeaderCount, const BYTE* pBody, int iLength, BOOL bForceReconnect);
+HPSOCKET_API BOOL __HP_CALL HP_HttpSyncClient_OpenUrl(HP_HttpSyncClient pClient, LPCSTR lpszMethod, LPCSTR lpszUrl, const HP_THeader lpHeaders[], int iHeaderCount, const BYTE* pBody, int iLength, BOOL bForceReconnect);
 
 /*
 * 名称：清除请求结果

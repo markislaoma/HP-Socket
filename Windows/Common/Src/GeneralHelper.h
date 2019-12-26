@@ -2,11 +2,11 @@
  * Copyright: JessMA Open Source (ldcsaa@gmail.com)
  *
  * Author	: Bruce Liang
- * Website	: http://www.jessma.org
- * Project	: https://github.com/ldcsaa
+ * Website	: https://github.com/ldcsaa
+ * Project	: https://github.com/ldcsaa/HP-Socket/HP-Socket
  * Blog		: http://www.cnblogs.com/ldcsaa
  * Wiki		: http://www.oschina.net/p/hp-socket
- * QQ Group	: 75375912, 44636872
+ * QQ Group	: 44636872, 75375912
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,8 @@ _WINSOCK_SUPPORT	: 支持 Windows Socket
 _DETECT_MEMORY_LEAK	: DEBUG 状态下支持内存泄露检查
 _ONLY_DETECT_CONFIRMED_MEMORY_LEAK_	: 只报告能够确认的内存泄露（不能确定的不报告）
 ---------------------------
+VC 2019
+	_MSC_VER == 1920
 VC 2017
 	_MSC_VER == 1910
 VC 2015
@@ -138,7 +140,7 @@ _WIN32_WINNT_WIN10		0x0A00
 	#if defined (_WIN64)
 		#define _WIN32_WINNT	_WIN32_WINNT_WIN7
 	#else
-		#if _MSC_VER >= 1900
+		#if _MSC_VER >= 1910
 			#define _WIN32_WINNT	_WIN32_WINNT_WIN7
 		#else
 			#define _WIN32_WINNT	_WIN32_WINNT_WINXP
@@ -147,7 +149,7 @@ _WIN32_WINNT_WIN10		0x0A00
 #endif
 
 #ifndef WINVER
-	//#define WINVER	_WIN32_WINNT
+	#define WINVER	_WIN32_WINNT
 #endif
 
 #if _MSC_VER >= 1600

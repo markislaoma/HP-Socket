@@ -101,7 +101,7 @@ BOOL CTcpClient::CheckStarting()
 		m_enState = SS_STARTING;
 	else
 	{
-		SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_OPERATION);
+		SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_STATE);
 		return FALSE;
 	}
 
@@ -127,7 +127,7 @@ BOOL CTcpClient::CheckStoping()
 		}
 	}
 
-	SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_OPERATION);
+	SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_STATE);
 
 	return FALSE;
 }
@@ -227,9 +227,9 @@ BOOL CTcpClient::Stop()
 	if(!CheckStoping())
 		return FALSE;
 
-	SetConnected(FALSE);
-
 	WaitForWorkerThreadEnd();
+
+	SetConnected(FALSE);
 
 	if(m_ccContext.bFireOnClose)
 		FireClose(m_ccContext.enOperation, m_ccContext.iErrorCode);
@@ -289,6 +289,8 @@ BOOL CTcpClient::CreateWorkerThread()
 UINT WINAPI CTcpClient::WorkerThreadProc(LPVOID pv)
 {
 	TRACE("---------------> Client Worker Thread 0x%08X started <---------------", SELF_THREAD_ID);
+
+	OnWorkerThreadStart(SELF_THREAD_ID);
 
 	BOOL bCallStop	= TRUE;
 	pollfd pfds[]	= {	{m_soClient, m_nEvents}, 
@@ -447,6 +449,9 @@ BOOL CTcpClient::ReadData()
 {
 	while(TRUE)
 	{
+		if(m_bPaused)
+			break;
+
 		int rc = (int)read(m_soClient, (char*)(BYTE*)m_rcBuffer, m_dwSocketBufferSize);
 
 		if(rc > 0)

@@ -2,11 +2,11 @@
  * Copyright: JessMA Open Source (ldcsaa@gmail.com)
  *
  * Author	: Bruce Liang
- * Website	: http://www.jessma.org
- * Project	: https://github.com/ldcsaa
+ * Website	: https://github.com/ldcsaa
+ * Project	: https://github.com/ldcsaa/HP-Socket/HP-Socket
  * Blog		: http://www.cnblogs.com/ldcsaa
  * Wiki		: http://www.oschina.net/p/hp-socket
- * QQ Group	: 75375912, 44636872
+ * QQ Group	: 44636872, 75375912
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,7 +95,10 @@ public:
 public:
 	CPrivateHeapImpl(DWORD dwOptions = 0, SIZE_T dwInitSize = 0, SIZE_T dwMaxSize = 0)
 	: m_dwOptions(dwOptions | HEAP_GENERATE_EXCEPTIONS), m_dwInitSize(dwInitSize), m_dwMaxSize(dwMaxSize)
-		{m_hHeap = ::HeapCreate(m_dwOptions, m_dwInitSize, m_dwMaxSize);}
+	{
+		m_hHeap = ::HeapCreate(m_dwOptions, m_dwInitSize, m_dwMaxSize);
+		ENSURE(IsValid());
+	}
 
 	~CPrivateHeapImpl	()	{if(IsValid()) ::HeapDestroy(m_hHeap);}
 

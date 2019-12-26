@@ -127,7 +127,7 @@
     <ClCompile Include="..\..\..\src\common\Event.cpp" />
     <ClCompile Include="..\..\..\src\common\FileHelper.cpp" />
     <ClCompile Include="..\..\..\src\common\FuncHelper.cpp" />
-    <ClCompile Include="..\..\..\src\common\http\http_parser.cpp" />
+    <ClCompile Include="..\..\..\src\common\http\http_parser.c" />
     <ClCompile Include="..\..\..\src\common\IODispatcher.cpp" />
     <ClCompile Include="..\..\..\src\common\PollHelper.cpp" />
     <ClCompile Include="..\..\..\src\common\RWLock.cpp" />
@@ -180,7 +180,7 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
-      <CppAdditionalWarning>no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
+      <CppAdditionalWarning>no-class-memaccess;no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
       <CppLanguageStandard>c++1y</CppLanguageStandard>
       <SymbolsHiddenByDefault>true</SymbolsHiddenByDefault>
       <AdditionalIncludeDirectories>../../../dependent/$(Platform)/include;$(StlIncludeDirectories);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -194,7 +194,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <ClCompile>
-      <CppAdditionalWarning>no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
+      <CppAdditionalWarning>no-class-memaccess;no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
       <CppLanguageStandard>c++1y</CppLanguageStandard>
       <DebugInformationFormat>None</DebugInformationFormat>
       <SymbolsHiddenByDefault>true</SymbolsHiddenByDefault>
@@ -209,7 +209,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <CppAdditionalWarning>no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
+      <CppAdditionalWarning>no-class-memaccess;no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
       <CppLanguageStandard>c++1y</CppLanguageStandard>
       <SymbolsHiddenByDefault>true</SymbolsHiddenByDefault>
       <AdditionalIncludeDirectories>../../../dependent/$(Platform)/include;$(StlIncludeDirectories);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -223,7 +223,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <CppAdditionalWarning>no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
+      <CppAdditionalWarning>no-class-memaccess;no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
       <CppLanguageStandard>c++1y</CppLanguageStandard>
       <DebugInformationFormat>None</DebugInformationFormat>
       <SymbolsHiddenByDefault>true</SymbolsHiddenByDefault>
@@ -238,7 +238,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <ClCompile>
-      <CppAdditionalWarning>no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
+      <CppAdditionalWarning>no-class-memaccess;no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
       <CppLanguageStandard>c++1y</CppLanguageStandard>
       <SymbolsHiddenByDefault>true</SymbolsHiddenByDefault>
       <AdditionalIncludeDirectories>../../../dependent/$(Platform)/include;$(StlIncludeDirectories);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -252,7 +252,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
     <ClCompile>
-      <CppAdditionalWarning>no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
+      <CppAdditionalWarning>no-class-memaccess;no-reorder;switch;no-deprecated-declarations;empty-body;conversion;return-type;parentheses;no-format;uninitialized;unreachable-code;unused-function;unused-value;unused-variable;%(CppAdditionalWarning)</CppAdditionalWarning>
       <CppLanguageStandard>c++1y</CppLanguageStandard>
       <DebugInformationFormat>None</DebugInformationFormat>
       <SymbolsHiddenByDefault>true</SymbolsHiddenByDefault>

@@ -86,6 +86,16 @@ template<class T, USHORT default_port> BOOL CHttpServerT<T, default_port>::SendL
 	return SendResponse(dwConnID, usStatusCode, lpszDesc, lpHeaders, iHeaderCount, (BYTE*)(char*)fmap, (int)fmap.GetMappingSize());
 }
 
+template<class T, USHORT default_port> BOOL CHttpServerT<T, default_port>::SendChunkData(CONNID dwConnID, const BYTE* pData, int iLength, LPCSTR lpszExtensions)
+{
+	char szLen[12];
+	WSABUF bufs[5];
+
+	int iCount = MakeChunkPackage(pData, iLength, lpszExtensions, szLen, bufs);
+
+	return SendPackets(dwConnID, bufs, iCount);
+}
+
 template<class T, USHORT default_port> BOOL CHttpServerT<T, default_port>::Release(CONNID dwConnID)
 {
 	if(!HasStarted())
@@ -103,12 +113,12 @@ template<class T, USHORT default_port> BOOL CHttpServerT<T, default_port>::Relea
 	return TRUE;
 }
 
-template<class T, USHORT default_port> BOOL CHttpServerT<T, default_port>::SendWSMessage(CONNID dwConnID, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE lpszMask[4], BYTE* pData, int iLength, ULONGLONG ullBodyLen)
+template<class T, USHORT default_port> BOOL CHttpServerT<T, default_port>::SendWSMessage(CONNID dwConnID, BOOL bFinal, BYTE iReserved, BYTE iOperationCode, const BYTE* pData, int iLength, ULONGLONG ullBodyLen)
 {
 	WSABUF szBuffer[2];
 	BYTE szHeader[HTTP_MAX_WS_HEADER_LEN];
 
-	if(!::MakeWSPacket(bFinal, iReserved, iOperationCode, lpszMask, pData, iLength, ullBodyLen, szHeader, szBuffer))
+	if(!::MakeWSPacket(bFinal, iReserved, iOperationCode, nullptr, (BYTE*)pData, iLength, ullBodyLen, szHeader, szBuffer))
 		return FALSE;
 
 	return SendPackets(dwConnID, szBuffer, 2);
@@ -116,7 +126,7 @@ template<class T, USHORT default_port> BOOL CHttpServerT<T, default_port>::SendW
 
 template<class T, USHORT default_port> UINT CHttpServerT<T, default_port>::CleanerThreadProc(PVOID pv)
 {
-	TRACE("---------------> Connection Cleaner Thread 0x%08X started <---------------\n", ::GetCurrentThreadId());
+	TRACE("---------------> Connection Cleaner Thread 0x%08X started <---------------\n", SELF_THREAD_ID);
 
 	DWORD dwRetValue = 0;
 	DWORD dwInterval = max(MIN_HTTP_RELEASE_CHECK_INTERVAL, (m_dwReleaseDelay - MIN_HTTP_RELEASE_DELAY / 2));
@@ -135,7 +145,7 @@ template<class T, USHORT default_port> UINT CHttpServerT<T, default_port>::Clean
 
 	ReleaseDyingConnection();
 
-	TRACE("---------------> Connection Cleaner Thread 0x%08X stoped <---------------\n", ::GetCurrentThreadId());
+	TRACE("---------------> Connection Cleaner Thread 0x%08X stoped <---------------\n", SELF_THREAD_ID);
 
 	return 0;
 }

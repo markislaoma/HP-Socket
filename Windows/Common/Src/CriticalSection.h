@@ -2,11 +2,11 @@
  * Copyright: JessMA Open Source (ldcsaa@gmail.com)
  *
  * Author	: Bruce Liang
- * Website	: http://www.jessma.org
- * Project	: https://github.com/ldcsaa
+ * Website	: https://github.com/ldcsaa
+ * Project	: https://github.com/ldcsaa/HP-Socket/HP-Socket
  * Blog		: http://www.cnblogs.com/ldcsaa
  * Wiki		: http://www.oschina.net/p/hp-socket
- * QQ Group	: 75375912, 44636872
+ * QQ Group	: 44636872, 75375912
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -280,6 +280,57 @@ public:
 	void Unlock()	{}
 	BOOL TryLock()	{return TRUE;}
 };
+
+#if _WIN32_WINNT >= _WIN32_WINNT_WS08
+
+class CSlimCriSec
+{
+public:
+	CSlimCriSec()			{::InitializeSRWLock(&m_crisec);}
+	~CSlimCriSec()			{}
+
+	void Lock()				{::AcquireSRWLockExclusive(&m_crisec);}
+	void Unlock()			{::ReleaseSRWLockExclusive(&m_crisec);}
+	BOOL TryLock()			{return ::TryAcquireSRWLockExclusive(&m_crisec);}
+
+	SRWLOCK* GetObject()	{return &m_crisec;}
+
+private:
+	CSlimCriSec(const CSlimCriSec& cs);
+	CSlimCriSec operator = (const CSlimCriSec& cs);
+
+private:
+	SRWLOCK m_crisec;
+};
+
+class CConVar
+{
+public:
+	void WakeUp()		{::WakeConditionVariable(&m_cv);}
+	void WakeUpAll()	{::WakeAllConditionVariable(&m_cv);}
+
+	BOOL Wait(CRITICAL_SECTION* pLock, DWORD dwMilliseconds = INFINITE)
+	{
+		return ::SleepConditionVariableCS(&m_cv, pLock, dwMilliseconds);
+	}
+
+	BOOL Wait(SRWLOCK* pLock, DWORD dwMilliseconds = INFINITE)
+	{
+		return ::SleepConditionVariableSRW(&m_cv, pLock, dwMilliseconds, 0);
+	}
+
+public:
+	CConVar()	{::InitializeConditionVariable(&m_cv);}
+	~CConVar()	{}
+private:
+	CConVar(const CConVar& cs);
+	CConVar operator = (const CConVar& cs);
+
+private:
+	CONDITION_VARIABLE m_cv;
+};
+
+#endif
 
 template<class CLockObj> class CLocalLock
 {

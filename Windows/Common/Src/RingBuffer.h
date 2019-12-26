@@ -2,11 +2,11 @@
  * Copyright: JessMA Open Source (ldcsaa@gmail.com)
  *
  * Author	: Bruce Liang
- * Website	: http://www.jessma.org
- * Project	: https://github.com/ldcsaa
+ * Website	: https://github.com/ldcsaa
+ * Project	: https://github.com/ldcsaa/HP-Socket/HP-Socket
  * Blog		: http://www.cnblogs.com/ldcsaa
  * Wiki		: http://www.oschina.net/p/hp-socket
- * QQ Group	: 75375912, 44636872
+ * QQ Group	: 44636872, 75375912
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@
  
 #pragma once
 
-#include "STLHelper.h"
 #include "RWLock.h"
+#include "STLHelper.h"
 #include "CriticalSection.h"
 
 #define CACHE_LINE		64
@@ -860,7 +860,7 @@ public:
 		TPTR pElement2 = nullptr;
 
 		if(pdwRealIndex == nullptr)
-			pdwRealIndex = (index_type*)_alloca(sizeof(index_type));
+			pdwRealIndex = CreateLocalObject(index_type);
 
 		if(Get(dwIndex, &pElement2, pdwRealIndex) == GR_FAIL)
 			return FALSE;
@@ -1126,8 +1126,6 @@ private:
 
 	static TPTR const E_EMPTY;
 	static TPTR const E_LOCKED;
-	static TPTR const E_RELEASED;
-	static TPTR const E_OCCUPIED;
 	static TPTR const E_MAX_STATUS;
 
 private:
@@ -1144,9 +1142,8 @@ public:
 
 		BOOL isOK = FALSE;
 
-		while(true)
+		for(DWORD i = 0; i < m_dwSize; i++)
 		{
-			BOOL bOccupy = FALSE;
 			DWORD seqPut = m_seqPut;
 
 			if(!HasPutSpace(seqPut))
@@ -1154,27 +1151,21 @@ public:
 
 			DWORD dwIndex = seqPut % m_dwSize;
 			VTPTR& pValue = INDEX_VAL(dwIndex);
+			TPTR pCurrent = (TPTR)pValue;
 
-			if(pValue == E_RELEASED)
+			if(pCurrent == E_EMPTY)
 			{
-				if(::InterlockedCompareExchangePointer((volatile PVOID*)&pValue, E_OCCUPIED, E_RELEASED) == E_RELEASED)
-					bOccupy = TRUE;
-				else
-					continue;
-			}
-
-			if(pValue == E_EMPTY || bOccupy)
-			{
-				if(::InterlockedCompareExchange(&m_seqPut, seqPut + 1, seqPut) == seqPut)
+				if(::InterlockedCompareExchangePointer((volatile PVOID*)&pValue, pElement, pCurrent) == pCurrent)
 				{
-					pValue	= pElement;
-					isOK	= TRUE;
+					::InterlockedCompareExchange(&m_seqPut, seqPut + 1, seqPut);
+
+					isOK = TRUE;
 
 					break;
 				}
 			}
-			else if(pValue == E_LOCKED)
-				break;
+
+			::InterlockedCompareExchange(&m_seqPut, seqPut + 1, seqPut);
 		}
 
 		return isOK;
@@ -1197,22 +1188,22 @@ public:
 
 			DWORD dwIndex = seqGet % m_dwSize;
 			VTPTR& pValue = INDEX_VAL(dwIndex);
+			TPTR pCurrent = (TPTR)pValue;
 
-			if(pValue == E_LOCKED)
-				break;
-			else if(pValue != E_EMPTY && pValue != E_RELEASED && pValue != E_OCCUPIED)
+			if(pCurrent > E_MAX_STATUS)
 			{
-				if(::InterlockedCompareExchange(&m_seqGet, seqGet + 1, seqGet) == seqGet)
+				if(::InterlockedCompareExchangePointer((volatile PVOID*)&pValue, E_EMPTY, pCurrent) == pCurrent)
 				{
-					ASSERT(pValue > E_MAX_STATUS);
+					::InterlockedCompareExchange(&m_seqGet, seqGet + 1, seqGet);
 
-					*(ppElement)	= (TPTR)pValue;
-					pValue			= E_EMPTY;
-					isOK			= TRUE;
+					*(ppElement) = pCurrent;
+					isOK		 = TRUE;
 
 					break;
 				}
 			}
+
+			::InterlockedCompareExchange(&m_seqGet, seqGet + 1, seqGet);
 		}
 
 		return isOK;
@@ -1233,24 +1224,24 @@ public:
 			if(!HasGetSpace(seqGet))
 				break;
 
-			dwIndex			= seqGet % m_dwSize;
-			VTPTR& pValue	= INDEX_VAL(dwIndex);
+			dwIndex		  = seqGet % m_dwSize;
+			VTPTR& pValue = INDEX_VAL(dwIndex);
+			TPTR pCurrent = (TPTR)pValue;
 
-			if(pValue == E_LOCKED)
-				break;
-			else if(pValue != E_EMPTY && pValue != E_RELEASED && pValue != E_OCCUPIED)
+			if(pCurrent > E_MAX_STATUS)
 			{
-				if(::InterlockedCompareExchange(&m_seqGet, seqGet + 1, seqGet) == seqGet)
+				if(::InterlockedCompareExchangePointer((volatile PVOID*)&pValue, E_LOCKED, pCurrent) == pCurrent)
 				{
-					ASSERT(pValue > E_MAX_STATUS);
+					::InterlockedCompareExchange(&m_seqGet, seqGet + 1, seqGet);
 
-					*(ppElement)	= (TPTR)pValue;
-					pValue			= E_LOCKED;
-					isOK			= TRUE;
+					*(ppElement) = pCurrent;
+					isOK		 = TRUE;
 
 					break;
 				}
 			}
+
+			::InterlockedCompareExchange(&m_seqGet, seqGet + 1, seqGet);
 		}
 
 		return isOK;
@@ -1266,28 +1257,10 @@ public:
 		VTPTR& pValue = INDEX_VAL(dwIndex);
 		ENSURE(pValue == E_LOCKED);
 
-		if(pElement != nullptr)
-		{
-			for(DWORD i = 0; ; i++)
-			{
-				if(TryPut(pElement))
-					break;
-
-				DWORD dwPutIndex = m_seqPut % m_dwSize;
-
-				if(dwIndex == dwPutIndex)
-				{
-					pValue = pElement;
-					::InterlockedIncrement(&m_seqPut);
-
-					return TRUE;
-				}
-
-				::YieldThread(i);
-			}
-		}
-
-		pValue = E_RELEASED;
+		if(pElement == nullptr)
+			pValue = E_EMPTY;
+		else
+			pValue = pElement;
 
 		return TRUE;
 	}
@@ -1300,6 +1273,22 @@ public:
 			Destroy();
 		if(dwSize > 0)
 			Create(dwSize);
+	}
+
+	void Clear()
+	{
+		for(DWORD dwIndex = 0; dwIndex < m_dwSize; dwIndex++)
+		{
+			VTPTR& pValue = INDEX_VAL(dwIndex);
+
+			if( pValue > E_MAX_STATUS)
+			{
+				T::Destruct((TPTR)pValue);
+				pValue = E_EMPTY;
+			}
+		}
+
+		Reset();
 	}
 
 	DWORD Size()		{return m_dwSize;}
@@ -1374,8 +1363,6 @@ private:
 
 template <class T> T* const CRingPool<T>::E_EMPTY		= (T*)0x00;
 template <class T> T* const CRingPool<T>::E_LOCKED		= (T*)0x01;
-template <class T> T* const CRingPool<T>::E_RELEASED	= (T*)0x02;
-template <class T> T* const CRingPool<T>::E_OCCUPIED	= (T*)0x03;
 template <class T> T* const CRingPool<T>::E_MAX_STATUS	= (T*)0x0F;
 
 // ------------------------------------------------------------------------------------------------------------- //
@@ -1731,6 +1718,7 @@ private:
 template<typename T>
 void ReleaseGCObj(CCASQueue<T>& lsGC, DWORD dwLockTime, BOOL bForce = FALSE)
 {
+	static const int MIN_CHECK_INTERVAL = 1 * 1000;
 	static const int MAX_CHECK_INTERVAL = 15 * 1000;
 
 	T* pObj = nullptr;
@@ -1747,7 +1735,7 @@ void ReleaseGCObj(CCASQueue<T>& lsGC, DWORD dwLockTime, BOOL bForce = FALSE)
 	}
 	else
 	{
-		if(lsGC.IsEmpty() || lsGC.GetCheckTimeGap() < min((int)(dwLockTime / 3), MAX_CHECK_INTERVAL))
+		if(lsGC.IsEmpty() || lsGC.GetCheckTimeGap() < max(min((int)(dwLockTime / 3), MAX_CHECK_INTERVAL), MIN_CHECK_INTERVAL))
 			return;
 
 		BOOL bFirst	= TRUE;

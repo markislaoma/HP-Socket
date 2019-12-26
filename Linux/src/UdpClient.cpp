@@ -76,7 +76,7 @@ BOOL CUdpClient::CheckParams()
 		((int)m_dwFreeBufferPoolSize >= 0)														&&
 		((int)m_dwFreeBufferPoolHold >= 0)														&&
 		((int)m_dwDetectAttempts >= 0)															&&
-		((int)m_dwDetectInterval >= 0)															)
+		((int)m_dwDetectInterval >= 1000 || m_dwDetectInterval == 0)							)
 		return TRUE;
 
 	SetLastError(SE_INVALID_PARAM, __FUNCTION__, ERROR_INVALID_PARAMETER);
@@ -100,7 +100,7 @@ BOOL CUdpClient::CheckStarting()
 		m_enState = SS_STARTING;
 	else
 	{
-		SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_OPERATION);
+		SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_STATE);
 		return FALSE;
 	}
 
@@ -126,7 +126,7 @@ BOOL CUdpClient::CheckStoping()
 		}
 	}
 
-	SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_OPERATION);
+	SetLastError(SE_ILLEGAL_STATE, __FUNCTION__, ERROR_INVALID_STATE);
 
 	return FALSE;
 }
@@ -224,9 +224,9 @@ BOOL CUdpClient::Stop()
 	if(!CheckStoping())
 		return FALSE;
 
-	SetConnected(FALSE);
-
 	WaitForWorkerThreadEnd();
+
+	CheckConnected();
 
 	if(m_ccContext.bFireOnClose)
 		FireClose(m_ccContext.enOperation, m_ccContext.iErrorCode);
@@ -251,7 +251,6 @@ void CUdpClient::Reset()
 	m_evSend.Reset();
 	m_evRecv.Reset();
 	m_evStop.Reset();
-	m_evDetect.Set(0, 0);
 
 	m_lsSend.Clear();
 	m_itPool.Clear();
@@ -280,6 +279,17 @@ void CUdpClient::WaitForWorkerThreadEnd()
 	}
 }
 
+void CUdpClient::CheckConnected()
+{
+	if(!IsConnected())
+		return;
+
+	if(m_ccContext.bNotify)
+		::SendUdpCloseNotify(m_soClient);
+
+	SetConnected(FALSE);
+}
+
 BOOL CUdpClient::CreateWorkerThread()
 {
 	return m_thWorker.Start(this, &CUdpClient::WorkerThreadProc);
@@ -289,27 +299,41 @@ UINT WINAPI CUdpClient::WorkerThreadProc(LPVOID pv)
 {
 	TRACE("---------------> Client Worker Thread 0x%08X started <---------------", SELF_THREAD_ID);
 
-	BOOL bCallStop	= TRUE;
-	BOOL bDetect	= IsNeedDetect();
-	int size		= bDetect ? 5 : 4;
-	pollfd* pfds	= CreateLocalObjects(pollfd, size);
+	OnWorkerThreadStart(SELF_THREAD_ID);
 
-	pfds[0] = {m_soClient, m_nEvents};
-	pfds[1] = {m_evSend.GetFD(), POLLIN};
-	pfds[2] = {m_evRecv.GetFD(), POLLIN};
-	pfds[3] = {m_evStop.GetFD(), POLLIN};
+	BOOL bCallStop	= TRUE;
+	DWORD dwSize	= 4;
+	DWORD dwIndex	= 0;
+	BOOL bDetect	= IsNeedDetect();
+	FD fdUserEvt	= GetUserEvent();
+
+	if(bDetect) ++dwSize;
+	if(IS_VALID_FD(fdUserEvt)) ++dwSize;
+
+	pollfd* pfds	= CreateLocalObjects(pollfd, dwSize);
+
+	pfds[dwIndex++] = {m_soClient, m_nEvents};
+	pfds[dwIndex++] = {m_evSend.GetFD(), POLLIN};
+	pfds[dwIndex++] = {m_evRecv.GetFD(), POLLIN};
+	pfds[dwIndex++] = {m_evStop.GetFD(), POLLIN};
+
+	unique_ptr<CTimerEvent> evDetectPtr;
 
 	if(bDetect)
 	{
-		m_evDetect.Set(m_dwDetectInterval * 1000, m_dwDetectInterval * 1000);
-		pfds[4] = {m_evDetect.GetFD(), POLLIN};
+		evDetectPtr.reset(new CTimerEvent());
+		evDetectPtr->Set(m_dwDetectInterval);
+		pfds[dwIndex++] = {evDetectPtr->GetFD(), POLLIN};
 	}
+
+	if(IS_VALID_FD(fdUserEvt))
+		pfds[dwIndex++] = {fdUserEvt, POLLIN};
 
 	m_rcBuffer.Malloc(m_dwMaxDatagramSize);
 
 	while(HasStarted())
 	{
-		int rs = (int)::PollForMultipleObjects(pfds, size);
+		int rs = (int)::PollForMultipleObjects(pfds, dwSize);
 		ASSERT(rs > TIMEOUT);
 
 		if(rs <= 0)
@@ -318,7 +342,7 @@ UINT WINAPI CUdpClient::WorkerThreadProc(LPVOID pv)
 			goto EXIT_WORKER_THREAD;
 		}
 
-		for(int i = 0; i < size; i++)
+		for(DWORD i = 0; i < dwSize; i++)
 		{
 			if((1 << i) & rs)
 			{
@@ -352,10 +376,29 @@ UINT WINAPI CUdpClient::WorkerThreadProc(LPVOID pv)
 				}
 				else if(i == 4)
 				{
-					m_evDetect.Reset();
+					if(bDetect)
+					{
+						evDetectPtr->Reset();
 
-					if(!CheckConnection())
+						if(!CheckConnection())
+							goto EXIT_WORKER_THREAD;
+					}
+					else
+					{
+						if(!OnUserEvent())
+						{
+							m_ccContext.Reset(TRUE, SO_CLOSE, ENSURE_ERROR_CANCELLED);
+							goto EXIT_WORKER_THREAD;
+						}
+					}
+				}
+				else if(i == 5)
+				{
+					if(!OnUserEvent())
+					{
+						m_ccContext.Reset(TRUE, SO_CLOSE, ENSURE_ERROR_CANCELLED);
 						goto EXIT_WORKER_THREAD;
+					}
 				}
 				else
 					VERIFY(FALSE);
@@ -382,7 +425,7 @@ BOOL CUdpClient::CheckConnection()
 {
 	if(m_dwDetectFails++ >= m_dwDetectAttempts)
 	{
-		m_ccContext.Reset(TRUE, SO_CLOSE, ERROR_CONNRESET);
+		m_ccContext.Reset(TRUE, SO_CLOSE, NO_ERROR, FALSE);
 		return FALSE;
 	}
 
@@ -444,7 +487,7 @@ BOOL CUdpClient::HandleConnect(SHORT events)
 		VERIFY(DetectConnection());
 	else
 	{
-		m_ccContext.Reset(FALSE);
+		m_ccContext.Reset(FALSE, SO_CLOSE, ENSURE_ERROR_CANCELLED, FALSE);
 		return FALSE;
 	}
 
@@ -481,12 +524,26 @@ BOOL CUdpClient::ReadData()
 {
 	while(TRUE)
 	{
+		if(m_bPaused)
+			break;
+
 		int rc = (int)recv(m_soClient, (char*)(BYTE*)m_rcBuffer, m_dwMaxDatagramSize, MSG_TRUNC);
 
 		if(rc > 0)
 		{
+			m_dwDetectFails = 0;
+
+			if(::IsUdpCloseNotify(m_rcBuffer, rc))
+			{
+				m_ccContext.Reset(TRUE, SO_CLOSE, NO_ERROR, FALSE);
+				return FALSE;
+			}
+
 			if(rc > (int)m_dwMaxDatagramSize)
-				continue;
+			{
+				m_ccContext.Reset(TRUE, SO_RECEIVE, ERROR_BAD_LENGTH);
+				return FALSE;
+			}
 
 			if(TRIGGER(FireReceive(m_rcBuffer, rc)) == HR_ERROR)
 			{
@@ -607,7 +664,7 @@ BOOL CUdpClient::DoSendData(TItem* pItem)
 	return TRUE;
 }
 
-BOOL CUdpClient::Send(const BYTE* pBuffer, int iLength, int iOffset)
+BOOL CUdpClient::DoSend(const BYTE* pBuffer, int iLength, int iOffset)
 {
 	ASSERT(pBuffer && iLength > 0 && iLength <= (int)m_dwMaxDatagramSize);
 

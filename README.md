@@ -1,5 +1,6 @@
-# HP-Socket
-High Performance Network Framework
+![HP-Socket](https://images.gitee.com/uploads/images/2019/0820/112616_5b8b37bf_81720.png "HP-Socket")
+---
+*High Performance Network Framework*
 ## Description
 - ***Server*** Based on IOCP/EPOLL communication model, combined with technology of memory pool, private heap etc., efficient memory management is implemented to support large scale and high concurrent communication scenarios.
 - ***Agent*** The Agent component is essentially a Multi-Client component that uses the same technical architecture as the Server component. An Agent component object can create and efficiently handle large-scale Socket connections at the same time.
@@ -25,7 +26,7 @@ High Performance Network Framework
 7. Destroy component object
 8. Destroy listener object
 
-![Agent Workflow](https://gitee.com/uploads/images/2017/1213/120601_c0d950fb_81720.jpeg "HP-Socket-Agent-Demo.JPG")
+![Agent Workflow](https://gitee.com/uploads/images/2017/1213/120601_c0d950fb_81720.jpeg "HP-Socket Agent Demo")
 ## Example
 - ***C++ Example***
 
@@ -62,7 +63,7 @@ int main(int argc, char* const argv[])
 	// ... ... 
 	
 	// 6. (optional) Stop component object
-	s_pserver->Stop()
+	s_pserver->Stop();
 
 	return 0;
 	
@@ -113,7 +114,7 @@ int main(int argc, char* const argv[])
 	// ... ... 
 	
 	// 6. (optional) Stop component object
-	::HP_Agent_Stop(s_agent)
+	::HP_Agent_Stop(s_agent);
 
 	// 7. Destroy component object
 	::Destroy_HP_TcpPullAgent(s_agent);
@@ -127,12 +128,31 @@ int main(int argc, char* const argv[])
 ## Component List
 - ***Basic Components***
 
-![Basic Component](https://gitee.com/uploads/images/2017/1214/143803_15f6abc9_81720.jpeg "Basic Component- mini.jpg")
+![Basic Component](https://oscimg.oschina.net/oscnet/up-42bad6a83208cda6aaa264ed00e5c328326.JPEG "Basic Component")
 
 - ***SSL Components***
 
-![SSL Component](https://gitee.com/uploads/images/2017/1214/143622_d6c1f436_81720.jpeg "SSL Component - mini.jpg")
+![SSL Component](https://oscimg.oschina.net/oscnet/up-481b7e4181c1e57dbe57cf0f4f328d7d227.JPEG "SSL Component")
 
 - ***HTTP Components***
 
-![HTTP COmponent](https://gitee.com/uploads/images/2017/1214/143640_0eb6f9e4_81720.jpeg "HTTP Component - mini.jpg")
+![HTTP COmponent](https://oscimg.oschina.net/oscnet/up-83092ff97598f275e3ca6b7abed679d4f61.JPEG "HTTP Component")
+
+## Reference Projects
+
+- *[jemalloc](https://github.com/jemalloc/jemalloc)*
+- *[openssl](https://github.com/openssl/openssl)*
+- *[http-parser](https://github.com/nodejs/http-parser)*
+- *[zlib](https://github.com/madler/zlib)*
+- *[kcp](https://github.com/skywind3000/kcp)*
+
+## Third-party Extension Projects
+
+- *[HP-Socket for macOS](https://gitee.com/xin_chong/HP-Socket-for-macOS)*
+- *[HP-Socket for .Net](https://gitee.com/int2e/HPSocket.Net)*
+
+## Donation
+
+![Alibaba Pay](https://images.gitee.com/uploads/images/2019/0918/190004_11ecea7c_81720.jpeg "Alibaba Pay")
+&nbsp;&nbsp;&nbsp;&nbsp;
+![Wechat Pay](https://images.gitee.com/uploads/images/2019/0918/190115_a1fc5ebf_81720.jpeg "Wechat Pay")

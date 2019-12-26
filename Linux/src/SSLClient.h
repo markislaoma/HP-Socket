@@ -36,8 +36,12 @@ public:
 	virtual BOOL IsSecure() {return TRUE;}
 	virtual BOOL SendPackets(const WSABUF pBuffers[], int iCount);
 
-	virtual BOOL SetupSSLContext(int iVerifyMode = SSL_VM_NONE, LPCTSTR lpszPemCertFile = nullptr, LPCTSTR lpszPemKeyFile = nullptr, LPCTSTR lpszKeyPasswod = nullptr, LPCTSTR lpszCAPemCertFileOrPath = nullptr)
-		{return m_sslCtx.Initialize(SSL_SM_CLIENT, iVerifyMode, lpszPemCertFile, lpszPemKeyFile, lpszKeyPasswod, lpszCAPemCertFileOrPath, nullptr);}
+	virtual BOOL SetupSSLContext(int iVerifyMode = SSL_VM_NONE, LPCTSTR lpszPemCertFile = nullptr, LPCTSTR lpszPemKeyFile = nullptr, LPCTSTR lpszKeyPassword = nullptr, LPCTSTR lpszCAPemCertFileOrPath = nullptr)
+		{return m_sslCtx.Initialize(SSL_SM_CLIENT, iVerifyMode, FALSE, (LPVOID)lpszPemCertFile, (LPVOID)lpszPemKeyFile, (LPVOID)lpszKeyPassword, (LPVOID)lpszCAPemCertFileOrPath, nullptr);}
+
+	virtual BOOL SetupSSLContextByMemory(int iVerifyMode = SSL_VM_NONE, LPCSTR lpszPemCert = nullptr, LPCSTR lpszPemKey = nullptr, LPCSTR lpszKeyPassword = nullptr, LPCSTR lpszCAPemCert = nullptr)
+		{return m_sslCtx.Initialize(SSL_SM_CLIENT, iVerifyMode, TRUE, (LPVOID)lpszPemCert, (LPVOID)lpszPemKey, (LPVOID)lpszKeyPassword, (LPVOID)lpszCAPemCert, nullptr);}
+
 	virtual void CleanupSSLContext()
 		{m_sslCtx.Cleanup();}
 
@@ -47,6 +51,8 @@ public:
 	virtual void SetSSLAutoHandShake(BOOL bAutoHandShake)	{m_bSSLAutoHandShake = bAutoHandShake;}
 	virtual BOOL IsSSLAutoHandShake	()						{return m_bSSLAutoHandShake;}
 
+	virtual BOOL GetSSLSessionInfo(EnSSLSessionInfo enInfo, LPVOID* lppInfo);
+
 protected:
 	virtual EnHandleResult FireConnect();
 	virtual EnHandleResult FireReceive(const BYTE* pData, int iLength);
@@ -55,7 +61,7 @@ protected:
 	virtual void PrepareStart();
 	virtual void Reset();
 
-	virtual void OnWorkerThreadEnd(DWORD dwThreadID);
+	virtual void OnWorkerThreadEnd(THR_ID dwThreadID);
 
 protected:
 	virtual BOOL StartSSLHandShakeNoCheck();
@@ -80,7 +86,7 @@ public:
 
 	virtual ~CSSLClient()
 	{
-		Stop();
+		ENSURE_STOP();
 	}
 
 private:

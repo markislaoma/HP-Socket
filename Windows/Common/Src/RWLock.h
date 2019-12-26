@@ -2,11 +2,11 @@
  * Copyright: JessMA Open Source (ldcsaa@gmail.com)
  *
  * Author	: Bruce Liang
- * Website	: http://www.jessma.org
- * Project	: https://github.com/ldcsaa
+ * Website	: https://github.com/ldcsaa
+ * Project	: https://github.com/ldcsaa/HP-Socket/HP-Socket
  * Blog		: http://www.cnblogs.com/ldcsaa
  * Wiki		: http://www.oschina.net/p/hp-socket
- * QQ Group	: 75375912, 44636872
+ * QQ Group	: 44636872, 75375912
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,7 +104,6 @@ private:
 
 private:
 	int m_nActive;
-	int m_nReadCount;
 	DWORD m_dwWriterTID;
 
 	CSpinGuard	m_cs;
@@ -205,14 +204,14 @@ public:
 
 	~CCVCriSec() {}
 
-	void WaitToRead(ICVCondition* pCondition)
+	BOOL WaitToRead(ICVCondition* pCondition, DWORD dwMilliseconds = INFINITE)
 	{
-		Wait(pCondition);
+		Wait(pCondition, dwMilliseconds);
 	}
 
-	void WaitToWrite(ICVCondition* pCondition)
+	BOOL WaitToWrite(ICVCondition* pCondition, DWORD dwMilliseconds = INFINITE)
 	{
-		Wait(pCondition);
+		Wait(pCondition, dwMilliseconds);
 	}
 
 	void ReadDone()
@@ -235,20 +234,29 @@ public:
 		::WakeAllConditionVariable(&m_cv);
 	}
 
-private:
-	void Wait(ICVCondition* pCondition)
+	BOOL Wait(ICVCondition* pCondition, DWORD dwMilliseconds = INFINITE)
 	{
 		ASSERT(pCondition);
 
 		m_cs.Lock();
 
-		while(!pCondition->Detect()) 
-			::SleepConditionVariableCS(&m_cv, m_cs.GetObject(), INFINITE);
+		while(!pCondition->Detect())
+		{
+			if(!::SleepConditionVariableCS(&m_cv, m_cs.GetObject(), dwMilliseconds))
+				return FALSE;
+		}
+
+		return TRUE;
 	}
 
 	void Done()
 	{
 		m_cs.Unlock();
+	}
+
+	CInterCriSec& GetLock()
+	{
+		return m_cs;
 	}
 
 private:
@@ -271,24 +279,34 @@ public:
 
 	~CCVSlim() {}
 
-	void WaitToRead(ICVCondition* pCondition)
+	BOOL WaitToRead(ICVCondition* pCondition, DWORD dwMilliseconds = INFINITE)
 	{
 		ASSERT(pCondition);
 
 		m_cs.WaitToRead();
 
 		while(!pCondition->Detect()) 
-			::SleepConditionVariableSRW(&m_cv, m_cs.GetObject(), INFINITE, CONDITION_VARIABLE_LOCKMODE_SHARED);
+		{
+			if(!::SleepConditionVariableSRW(&m_cv, m_cs.GetObject(), dwMilliseconds, CONDITION_VARIABLE_LOCKMODE_SHARED))
+				return FALSE;
+		}
+
+		return TRUE;
 	}
 
-	void WaitToWrite(ICVCondition* pCondition)
+	BOOL WaitToWrite(ICVCondition* pCondition, DWORD dwMilliseconds = INFINITE)
 	{
 		ASSERT(pCondition);
 
 		m_cs.WaitToWrite();
 
-		while(!pCondition->Detect())  
-			::SleepConditionVariableSRW(&m_cv, m_cs.GetObject(), INFINITE, 0);
+		while(!pCondition->Detect()) 
+		{
+			if(!::SleepConditionVariableSRW(&m_cv, m_cs.GetObject(), dwMilliseconds, 0))
+				return FALSE;
+		}
+
+		return TRUE;
 	}
 
 	void ReadDone()
@@ -311,6 +329,11 @@ public:
 		::WakeAllConditionVariable(&m_cv);
 	}
 
+	CSlimLock& GetLock()
+	{
+		return m_cs;
+	}
+
 private:
 	CCVSlim(const CCVSlim& cs);
 	CCVSlim operator = (const CCVSlim& cs);
@@ -323,14 +346,14 @@ private:
 template<class _Lock, class _Var> class CCVGuard
 {
 public:
-	void WaitForProduce()
+	BOOL WaitForProduce(DWORD dwMilliseconds = INFINITE)
 	{
-		m_cvP.WaitToWrite(m_pcdtProduce);
+		m_cvP.WaitToWrite(m_pcdtProduce, dwMilliseconds);
 	}
 
-	void WaitForConsume()
+	BOOL WaitForConsume(DWORD dwMilliseconds = INFINITE)
 	{
-		m_cvC.WaitToRead(m_pcdtConsume);
+		m_cvC.WaitToRead(m_pcdtConsume, dwMilliseconds);
 	}
 
 	void ProduceDone()
@@ -341,6 +364,11 @@ public:
 	void WakeUpProduce()
 	{
 		m_cvP.WakeUp();
+	}
+
+	void WakeUpAllProduces()
+	{
+		m_cvP.WakeUpAll();
 	}
 
 	void ConsumeDone()

@@ -39,7 +39,7 @@ BOOL CSSLClient::CheckParams()
 
 void CSSLClient::PrepareStart()
 {
-	m_dwMainThreadID = ::GetCurrentThreadId();
+	m_dwMainThreadID = SELF_THREAD_ID;
 
 	__super::PrepareStart();
 }
@@ -57,7 +57,7 @@ void CSSLClient::Reset()
 	__super::Reset();
 }
 
-void CSSLClient::OnWorkerThreadEnd(DWORD dwThreadID)
+void CSSLClient::OnWorkerThreadEnd(THR_ID dwThreadID)
 {
 	m_sslCtx.RemoveThreadLocalState();
 
@@ -134,6 +134,17 @@ void CSSLClient::DoSSLHandShake()
 {
 	m_sslSession.Renew(m_sslCtx, m_strHost);
 	ENSURE(::ProcessHandShake(this, this, &m_sslSession) == HR_OK);
+}
+
+BOOL CSSLClient::GetSSLSessionInfo(EnSSLSessionInfo enInfo, LPVOID* lppInfo)
+{
+	if(!m_sslSession.IsValid())
+	{
+		::SetLastError(ERROR_INVALID_STATE);
+		return FALSE;
+	}
+
+	return m_sslSession.GetSessionInfo(enInfo, lppInfo);
 }
 
 #endif

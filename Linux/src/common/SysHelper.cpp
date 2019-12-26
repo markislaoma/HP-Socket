@@ -2,11 +2,11 @@
 * Copyright: JessMA Open Source (ldcsaa@gmail.com)
 *
 * Author	: Bruce Liang
-* Website	: http://www.jessma.org
-* Project	: https://github.com/ldcsaa
+* Website	: https://github.com/ldcsaa
+* Project	: https://github.com/ldcsaa/HP-Socket
 * Blog		: http://www.cnblogs.com/ldcsaa
 * Wiki		: http://www.oschina.net/p/hp-socket
-* QQ Group	: 75375912, 44636872
+* QQ Group	: 44636872, 75375912
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,68 +23,44 @@
 
 #include "SysHelper.h"
 
-DWORD GetDefaultBufferSize()
+#include <stdio.h>
+#include <sys/utsname.h>
+
+DWORD _GetKernelVersion()
 {
-	static const DWORD s_dtsbs = (DWORD)SysGetPageSize();
-	return s_dtsbs;
+	utsname uts;
+	
+	if(uname(&uts) == RS_FAIL)
+		return 0;
+
+	char c;
+	int major, minor, revise;
+
+	if(sscanf(uts.release, "%d.%d.%d%c", &major, &minor, &revise, &c) < 3)
+		return 0;
+
+	return (DWORD)((major << 16) | (minor << 8) | revise);
+}
+
+DWORD GetSysPageSize()
+{
+	static const DWORD _s_page_size = (DWORD)SysGetPageSize();
+	return _s_page_size;
+}
+
+DWORD GetKernelVersion()
+{
+	static const DWORD _s_kernel_version = _GetKernelVersion();
+	return _s_kernel_version;
+}
+
+BOOL IsKernelVersionAbove(BYTE major, BYTE minor, BYTE revise)
+{
+	return GetKernelVersion() >= (DWORD)((major << 16) | (minor << 8) | revise);
 }
 
 DWORD GetDefaultWorkerThreadCount()
 {
-	static const DWORD s_dwtc = MIN((PROCESSOR_COUNT * 2 + 2), MAX_WORKER_THREAD_COUNT);
-	return s_dwtc;
+	static const DWORD _s_dwtc = MIN((PROCESSOR_COUNT * 2 + 2), MAX_WORKER_THREAD_COUNT);
+	return _s_dwtc;
 }
-
-
-#if defined(__ANDROID__)
-
-#if defined(__ANDROID_API__)
-#if (__ANDROID_API__ < 21)
-
-#include <limits.h>
-#include <string.h>
-
-int sigaddset(sigset_t *set, int signum)
-{
-	signum--;
-	unsigned long *local_set = (unsigned long *)set;
-
-	local_set[signum/LONG_BIT] |= 1UL << (signum%LONG_BIT);
-
-	return 0;
-}
-
-int sigdelset(sigset_t *set, int signum)
-{
-	signum--;
-	unsigned long *local_set = (unsigned long *)set;
-
-	local_set[signum/LONG_BIT] &= ~(1UL << (signum%LONG_BIT));
-
-	return 0;
-}
-
-int sigemptyset(sigset_t *set)
-{
-	memset(set, 0, sizeof *set);
-	return 0;
-}
-
-int sigfillset(sigset_t *set)
-{
-	memset(set, ~0, sizeof *set);
-	return 0;
-}
-
-int sigismember(sigset_t *set, int signum)
-{
-	signum--;
-	unsigned long *local_set = (unsigned long *)set;
-
-	return (int)((local_set[signum/LONG_BIT] >> (signum%LONG_BIT)) & 1);
-}
-
-#endif
-#endif
-
-#endif
